@@ -1,4 +1,4 @@
-export type TokenType = 'KEYWORD' | 'IDENTIFIER' | 'NUMBER' | 'STRING' | 'RESOLUTION' ;
+export type TokenType = 'KEYWORD' | 'IDENTIFIER' | 'NUMBER' | 'STRING' | 'RESOLUTION' | 'BITRATE' | 'TIME';
 
 export interface Token {
     type: TokenType;
@@ -28,6 +28,10 @@ function lexer(input: string): Token[] {
                 tokenType = 'STRING';
             } else if (isResolution(word)) {
                 tokenType = 'RESOLUTION';
+            } else if (isBitrate(word)) {
+                tokenType = 'BITRATE';
+            } else if (isTime(word)) {
+                tokenType = 'TIME';
             } else {
                 throw new Error(`Unknown token: ${word} at line ${lineNumber + 1}`);
             }
@@ -60,5 +64,13 @@ function isResolution(word: string): boolean {
     return /^\d+x\d+$/.test(word);
 }
 
-module.exports = { lexer, isKeyword, isIdentifier, isNumber, isString, isResolution };
+function isBitrate(word: string): boolean {
+    return /^\d+[kmg]$/.test(word.toLowerCase());
+}
+
+function isTime(word: string): boolean {
+    return /^\d+s$/.test(word.toLowerCase());
+}
+
+export { lexer, isKeyword, isIdentifier, isNumber, isString, isResolution, isBitrate, isTime };
 
