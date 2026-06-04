@@ -277,4 +277,4 @@ const parseTokens = (tokens: Token[]): Program => {
     return program as Program;
 }
 
-export { parseTokens };
+export { parseTokens, type Program, VideoCodec, AudioCodec, WatermarkPosition };
