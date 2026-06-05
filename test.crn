@@ -1,0 +1,13 @@
+input "input.mp4"
+
+resize 1280x720
+fps 30
+
+encode h264 aac
+bitrate 3000k
+
+watermark "logo.png" bottom-right
+
+thumbnail 5s
+
+output "output.mp4"

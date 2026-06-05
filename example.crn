@@ -1,0 +1,6 @@
+input "video.mp4"
+resize 1280x720
+fps 30
+encode h264 aac
+bitrate 2M
+output "output.mp4"

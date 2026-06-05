@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/parser.js",
+    "start": "tsx src/main.ts",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
