@@ -1,17 +1,30 @@
 {
-  "name": "kurenai",
+  "name": "@arafat2020/kurenai",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A DSL compiler that converts human-readable video pipeline scripts into FFmpeg commands",
+  "main": "./dist/main.js",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "tsx src/main.ts",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "ffmpeg",
+    "dsl",
+    "compiler",
+    "video",
+    "pipeline"
+  ],
+  "author": "Arafat Mannan",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arafat2020/kurenai.git"
+  },
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@vitest/ui": "^4.1.8",
@@ -19,5 +32,11 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "commander": "^15.0.0"
+  },
+  "bin": {
+    "kurenai": "dist/main.js"
   }
 }
