@@ -6,6 +6,7 @@ import { lexer } from "./lexer.js";
 import { parseTokens } from "./parser.js";
 import { analyze } from "./analyzer.js";
 import { generate } from "./codegen.js";
+import { explain } from "./explain.js";
 
 const program = new Command();
 
@@ -80,6 +81,27 @@ program
                 console.error(`Compilation Error: ${err.message}`);
             } else {
                 console.error("An unknown error occurred during compilation.");
+            }
+            process.exit(1);
+        }
+    });
+
+program
+    .command("explain <file>")
+    .description("Explains what the .crn file will do in human-readable form")
+    .action((file) => {
+        const source = readFile(file);
+        try {
+            const tokens = lexer(source);
+            const ast = parseTokens(tokens);
+            analyze(ast);
+            const commands = generate(ast);
+            explain(ast, commands);
+        } catch (err) {
+            if (err instanceof Error) {
+                console.error(`Explain Error: ${err.message}`);
+            } else {
+                console.error("An unknown error occurred during explain.");
             }
             process.exit(1);
         }

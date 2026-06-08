@@ -1,6 +1,6 @@
 import { Program } from "./parser";
 
-const videoCodecMap: Record<string, string> = {
+export const videoCodecMap: Record<string, string> = {
     h264: 'libx264',
     h265: 'libx265',
     vp8: 'libvpx',
