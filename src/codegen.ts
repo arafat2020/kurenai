@@ -1,6 +1,6 @@
 import { Program } from "./parser";
 
-const videoCodecMap: Record<string, string> = {
+export const videoCodecMap: Record<string, string> = {
     h264: 'libx264',
     h265: 'libx265',
     vp8: 'libvpx',
@@ -18,8 +18,8 @@ const positionMap: Record<string, string> = {
     'center': '(main_w-overlay_w)/2:(main_h-overlay_h)/2'
 };
 
-export function generate(program:Program):string{
-    let ffmpegCommand = `ffmpeg -i ${program.input.value}`;
+export function generate(program:Program): string[] {
+    let mainCommand = `ffmpeg -i ${program.input.value}`;
 
     const vfFilters: string[] = [];
 
@@ -32,32 +32,35 @@ export function generate(program:Program):string{
     }
 
     if (vfFilters.length > 0) {
-        ffmpegCommand += ` -vf "${vfFilters.join(',')}"`;
+        mainCommand += ` -vf "${vfFilters.join(',')}"`;
     }
 
     if (program.encode) {
         const vCodec = videoCodecMap[program.encode.videoCodec] || program.encode.videoCodec;
-        ffmpegCommand += ` -c:v ${vCodec} -c:a ${program.encode.audioCodec}`;
+        mainCommand += ` -c:v ${vCodec} -c:a ${program.encode.audioCodec}`;
     }
 
     if (program.bitrate) {
-        ffmpegCommand += ` -b:v ${program.bitrate.value}`;
+        mainCommand += ` -b:v ${program.bitrate.value}`;
     }
 
     if (program.audio) {
-        ffmpegCommand += ` -c:a ${program.audio.value}`;
+        mainCommand += ` -c:a ${program.audio.value}`;
     }
 
     if (program.watermark) {
         const position = positionMap[program.watermark.position] || '10:10';
-        ffmpegCommand += ` -i ${program.watermark.file} -filter_complex "overlay=${position}"`;
+        mainCommand += ` -i ${program.watermark.file} -filter_complex "overlay=${position}"`;
     }
+
+    mainCommand += ` ${program.output.value}`;
+
+    const commands: string[] = [mainCommand];
 
     if (program.thumbnail) {
-        ffmpegCommand += ` -ss ${program.thumbnail.value.replace('s', '')} -frames:v 1 thumb.jpg`;
+        const thumbCommand = `ffmpeg -i ${program.input.value} -ss ${program.thumbnail.value.replace('s', '')} -frames:v 1 thumb.jpg`;
+        commands.push(thumbCommand);
     }
 
-    ffmpegCommand += ` ${program.output.value}`;
-
-    return ffmpegCommand;
+    return commands;
 }
