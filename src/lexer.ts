@@ -1,4 +1,4 @@
-export type TokenType = 'KEYWORD' | 'IDENTIFIER' | 'NUMBER' | 'STRING' | 'RESOLUTION' | 'BITRATE' | 'TIME';
+export type TokenType = 'KEYWORD' | 'IDENTIFIER' | 'NUMBER' | 'STRING' | 'RESOLUTION' | 'BITRATE' | 'TIME' | 'LBRACE' | 'RBRACE';
 
 export interface Token {
     type: TokenType;
@@ -14,11 +14,23 @@ function lexer(input: string): Token[] {
         const line = (lines[lineNumber] ?? '').trim();
         if (line.length === 0) continue;
 
-        const words = line.split(/\s+/);
+        // Split on whitespace, then further split on brace boundaries
+        // so that "name{" becomes ["name", "{"] and "}" stays ["}"]
+        const rawWords = line.split(/\s+/);
+        const words: string[] = [];
+        for (const w of rawWords) {
+            // Split around { and } while keeping them as separate tokens
+            const parts = w.split(/([{}])/).filter(p => p.length > 0);
+            words.push(...parts);
+        }
         for (const word of words) {
             let tokenType: TokenType;
 
-            if (isKeyword(word)) {
+            if (word === '{') {
+                tokenType = 'LBRACE';
+            } else if (word === '}') {
+                tokenType = 'RBRACE';
+            } else if (isKeyword(word)) {
                 tokenType = 'KEYWORD';
             } else if (isIdentifier(word)) {
                 tokenType = 'IDENTIFIER';
@@ -44,7 +56,7 @@ function lexer(input: string): Token[] {
 }
 
 function isKeyword(word: string): boolean {
-    const keywords = ['resize', 'input', 'fps', 'output', 'encode', 'bitrate', 'audio', 'watermark', 'thumbnail'];
+    const keywords = ['resize', 'input', 'fps', 'output', 'encode', 'bitrate', 'audio', 'watermark', 'thumbnail', 'profile', 'use'];
     return keywords.includes(word);
 }
 

@@ -1,4 +1,4 @@
-import { lexer, type Token } from "./lexer.js";
+import { type Token } from "./lexer.js";
 
 // AST Node Types
 interface ASTNode {
@@ -82,6 +82,12 @@ interface ThumbnailNode extends ASTNode {
     value: string;
 }
 
+interface ProfileNode extends ASTNode {
+    type: 'PROFILE';
+    name: string;
+    body: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
+}
+
 interface Program extends ASTNode {
     input: InputNode;
     output: OutputNode;
@@ -92,6 +98,7 @@ interface Program extends ASTNode {
     audio?: AudioNode;
     watermark?: WatermarkNode;
     thumbnail?: ThumbnailNode;
+    profiles: Record<string, ProfileNode>;
 }
 
 
