@@ -105,4 +105,40 @@ output "final.mp4"`;
     const ast = parseTokens(tokens);
     expect(ast.bitrate?.value).toBe('2m');
   });
+
+  it('should parse a profile definition', () => {
+    const tokens = lexer('profile testProfile { resize 1920x1080 fps 60 }');
+    const ast = parseTokens(tokens);
+    expect(ast.profiles['testProfile']).toBeDefined();
+    expect(ast.profiles['testProfile']?.name).toBe('testProfile');
+    expect(ast.profiles['testProfile']?.body.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1 });
+    expect(ast.profiles['testProfile']?.body.fps).toEqual({ type: 'FPS', value: 60, line: 1 });
+  });
+
+  it('should apply a profile using use', () => {
+    const tokens = lexer('profile p1 { fps 30 } use p1');
+    const ast = parseTokens(tokens);
+    expect(ast.fps).toEqual({ type: 'FPS', value: 30, line: 1 });
+  });
+
+  it('should give inline configuration precedence over used profiles', () => {
+    const tokens = lexer('profile p1 { fps 30 resize 1920x1080 } use p1 fps 60');
+    const ast = parseTokens(tokens);
+    // Inline fps 60 should overwrite profile's fps 30
+    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1 });
+    // But resize from profile should still be applied
+    expect(ast.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1 });
+  });
+
+  it('should give inline configuration precedence even if use is called after', () => {
+    const tokens = lexer('profile p1 { fps 30 } fps 60 use p1');
+    const ast = parseTokens(tokens);
+    // Inline fps 60 should be preserved, use p1 should not overwrite it
+    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1 });
+  });
+
+  it('should throw an error if using an undefined profile', () => {
+    const tokens = lexer('use notFoundProfile');
+    expect(() => parseTokens(tokens)).toThrow(/not found/);
+  });
 });

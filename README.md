@@ -117,6 +117,24 @@ Extracts a single frame as a thumbnail image at the specified time. This automat
 thumbnail 10s
 ```
 
+### `profile` and `use`
+Profiles allow you to define reusable configuration blocks so you don't have to repeat the same encoding or filter settings across multiple videos.
+
+Define a profile using the `profile` keyword:
+```kurenai
+profile youtube_1080p {
+    resize 1920x1080
+    fps 60
+    encode h264 aac
+}
+```
+
+Apply the profile using the `use` keyword. **Note:** Inline configurations take precedence over profile configurations, meaning you can easily override specific fields!
+```kurenai
+use youtube_1080p
+fps 30 # Overrides the 60 fps defined in the profile
+```
+
 ## Example
 
 **`example.crn`**
