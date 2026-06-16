@@ -15,6 +15,13 @@ program
     .description("Kurenai Compiler CLI")
     .version("1.0.0");
 
+/**
+ * Helper function to read the `.crn` script from disk.
+ * It strictly enforces the .crn extension requirement.
+ * 
+ * @param filePath The path to the script file
+ * @returns The raw string content of the file
+ */
 function readFile(filePath: string): string {
     if (!filePath.endsWith(".crn")) {
         console.error("Error: File must have a .crn extension.");
@@ -32,6 +39,11 @@ function readFile(filePath: string): string {
     }
 }
 
+/**
+ * CLI Command: validate
+ * Parses and analyzes the given script without generating ffmpeg commands.
+ * Useful for syntax and logic checking.
+ */
 program
     .command("validate <file>")
     .description("Runs lexer, parser, and analyzer to validate the file")
@@ -52,6 +64,11 @@ program
         }
     });
 
+/**
+ * CLI Command: compile
+ * Runs the compiler pipeline (lexer -> parser -> analyzer -> codegen)
+ * and prints out the resulting FFmpeg commands.
+ */
 program
     .command("compile <file>")
     .description("Runs all stages and prints the FFmpeg command")
@@ -86,6 +103,11 @@ program
         }
     });
 
+/**
+ * CLI Command: explain
+ * Evaluates the script and outputs a human-readable breakdown
+ * of what the script does (inputs, filters, encoding, etc.).
+ */
 program
     .command("explain <file>")
     .description("Explains what the .crn file will do in human-readable form")
@@ -107,6 +129,11 @@ program
         }
     });
 
+/**
+ * CLI Command: run
+ * Executes the entire pipeline and actually runs the generated 
+ * FFmpeg commands natively using the host system.
+ */
 program
     .command("run <file>")
     .description("Runs all stages and executes the FFmpeg command")

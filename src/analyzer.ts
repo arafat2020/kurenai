@@ -1,5 +1,8 @@
 import { Program, VideoCodec, AudioCodec, WatermarkPosition } from "./parser";
 
+/**
+ * Defines the video file extensions supported by Kurenai.
+ */
 export enum SupportedVideoFormat {
     MP4 = '.mp4',
     AVI = '.avi',
@@ -13,6 +16,11 @@ export enum SupportedVideoFormat {
     M4V = '.m4v'
 }
 
+/**
+ * Validates the input file node to ensure it exists and has a supported extension.
+ * @param input The parsed InputNode
+ * @throws Error if input is missing or format is unsupported
+ */
 function analyzeInput(input: Program['input']): void {
     if (!input) {
         throw new Error("Input file is missing.");
@@ -29,6 +37,11 @@ function analyzeInput(input: Program['input']): void {
     }
 }
 
+/**
+ * Validates the output file node to ensure it exists and has a supported extension.
+ * @param output The parsed OutputNode
+ * @throws Error if output is missing or format is unsupported
+ */
 function analyzeOutput(output: Program['output']): void {
     if (!output) {
         throw new Error("Output file is missing.");
@@ -45,6 +58,12 @@ function analyzeOutput(output: Program['output']): void {
     }
 }
 
+/**
+ * Validates the frames per second (FPS) configuration.
+ * FPS must be a reasonable positive number (between 1 and 240).
+ * @param fps The parsed FpsNode
+ * @throws Error if FPS is out of bounds
+ */
 function analyzeFps(fps: Program['fps']): void {
     if (!fps) return;
 
@@ -53,6 +72,12 @@ function analyzeFps(fps: Program['fps']): void {
     }
 }
 
+/**
+ * Validates the resize (resolution) configuration.
+ * Width and height must be positive and divisible by 2 (required by many video encoders).
+ * @param resize The parsed ResizeNode
+ * @throws Error if dimensions are invalid or not divisible by 2
+ */
 function analyzeResize(resize: Program['resize']): void {
     if (!resize) return;
 
@@ -65,6 +90,11 @@ function analyzeResize(resize: Program['resize']): void {
     }
 }
 
+/**
+ * Validates the chosen video and audio codecs against the supported lists.
+ * @param encode The parsed EncodeNode
+ * @throws Error if an unsupported codec is provided
+ */
 function analyzeEncode(encode: Program['encode']): void {
     if (!encode) return;
 
@@ -79,6 +109,12 @@ function analyzeEncode(encode: Program['encode']): void {
     }
 }
 
+/**
+ * Validates the watermark configuration, ensuring the file path is provided
+ * and the position is a known valid position.
+ * @param watermark The parsed WatermarkNode
+ * @throws Error if file path is empty or position is unsupported
+ */
 function analyzeWatermark(watermark: Program['watermark']): void {
     if (!watermark) return;
 
@@ -92,6 +128,13 @@ function analyzeWatermark(watermark: Program['watermark']): void {
     }
 }
 
+/**
+ * The main analyzer function. 
+ * Traverses the parsed Program AST and performs semantic validation on all configurations.
+ * If any configuration is invalid, it throws a descriptive error.
+ * 
+ * @param code The fully parsed Program AST
+ */
 export function analyze(code: Program): void {
     analyzeInput(code.input);
     analyzeOutput(code.output);
