@@ -1,0 +1,11 @@
+profile youtube_1080p {
+  resize 1920x1080
+  fps 30
+  encode h264 aac
+  bitrate 8000k
+}
+
+use youtube_1080p
+
+input "video.mp4"
+output "final.mp4"

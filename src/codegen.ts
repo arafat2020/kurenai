@@ -1,5 +1,8 @@
 import { Program } from "./parser";
 
+/**
+ * Maps simple Kurenai video codec names to their FFmpeg equivalents.
+ */
 export const videoCodecMap: Record<string, string> = {
     h264: 'libx264',
     h265: 'libx265',
@@ -10,6 +13,10 @@ export const videoCodecMap: Record<string, string> = {
     theora: 'libtheora'
 };
 
+/**
+ * Maps Kurenai watermark position names to FFmpeg overlay coordinates.
+ * These expressions calculate the exact X:Y placement dynamically.
+ */
 const positionMap: Record<string, string> = {
     'top-left': '10:10',
     'top-right': 'main_w-overlay_w-10:10',
@@ -18,6 +25,13 @@ const positionMap: Record<string, string> = {
     'center': '(main_w-overlay_w)/2:(main_h-overlay_h)/2'
 };
 
+/**
+ * Translates the validated Program AST into an array of executable FFmpeg commands.
+ * It builds the main ffmpeg pipeline and adds extra commands (like thumbnail generation) if needed.
+ * 
+ * @param program The parsed and analyzed Program AST
+ * @returns An array of ffmpeg command strings ready for execution
+ */
 export function generate(program:Program): string[] {
     let mainCommand = `ffmpeg -i ${program.input.value}`;
 
