@@ -6,50 +6,50 @@ describe('Parser Tests', () => {
   it('should parse input and output keywords', () => {
     const tokens = lexer('input "test.mp4" output "result.mp4"');
     const ast = parseTokens(tokens);
-    expect(ast.input).toEqual({ type: 'INPUT', value: 'test.mp4', line: 1 });
-    expect(ast.output).toEqual({ type: 'OUTPUT', value: 'result.mp4', line: 1 });
+    expect(ast.input).toEqual({ type: 'INPUT', value: 'test.mp4', line: 1, column: 7, length: 10 });
+    expect(ast.output).toEqual({ type: 'OUTPUT', value: 'result.mp4', line: 1, column: 25, length: 12 });
   });
 
   it('should parse resize with 1920x1080', () => {
     const tokens = lexer('resize 1920x1080');
     const ast = parseTokens(tokens);
-    expect(ast.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1 });
+    expect(ast.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1, column: 8, length: 9 });
   });
 
   it('should parse fps with value 60', () => {
     const tokens = lexer('fps 60');
     const ast = parseTokens(tokens);
-    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1 });
+    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1, column: 5, length: 2 });
   });
 
   it('should parse bitrate with 5000k', () => {
     const tokens = lexer('bitrate 5000k');
     const ast = parseTokens(tokens);
-    expect(ast.bitrate).toEqual({ type: 'BITRATE', value: '5000k', line: 1 });
+    expect(ast.bitrate).toEqual({ type: 'BITRATE', value: '5000k', line: 1, column: 9, length: 5 });
   });
 
   it('should parse encode with h265 and mp3', () => {
     const tokens = lexer('encode h265 mp3');
     const ast = parseTokens(tokens);
-    expect(ast.encode).toEqual({ type: 'ENCODE', videoCodec: 'h265', audioCodec: 'mp3', line: 1 });
+    expect(ast.encode).toEqual({ type: 'ENCODE', videoCodec: 'h265', audioCodec: 'mp3', line: 1, column: 1, length: 15 });
   });
 
   it('should parse watermark with top-left position', () => {
     const tokens = lexer('watermark "logo.png" top-left');
     const ast = parseTokens(tokens);
-    expect(ast.watermark).toEqual({ type: 'WATERMARK', file: 'logo.png', position: 'top-left', line: 1 });
+    expect(ast.watermark).toEqual({ type: 'WATERMARK', file: 'logo.png', position: 'top-left', line: 1, column: 1, length: 29 });
   });
 
   it('should parse thumbnail with 10s', () => {
     const tokens = lexer('thumbnail 10s');
     const ast = parseTokens(tokens);
-    expect(ast.thumbnail).toEqual({ type: 'THUMBNAIL', value: '10s', line: 1 });
+    expect(ast.thumbnail).toEqual({ type: 'THUMBNAIL', value: '10s', line: 1, column: 11, length: 3 });
   });
 
   it('should parse audio with identifier', () => {
     const tokens = lexer('audio soundtrack');
     const ast = parseTokens(tokens);
-    expect(ast.audio).toEqual({ type: 'AUDIO', value: 'soundtrack', line: 1 });
+    expect(ast.audio).toEqual({ type: 'AUDIO', value: 'soundtrack', line: 1, column: 7, length: 10 });
   });
 
   it('should parse complete program with all features', () => {
@@ -111,30 +111,30 @@ output "final.mp4"`;
     const ast = parseTokens(tokens);
     expect(ast.profiles['testProfile']).toBeDefined();
     expect(ast.profiles['testProfile']?.name).toBe('testProfile');
-    expect(ast.profiles['testProfile']?.body.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1 });
-    expect(ast.profiles['testProfile']?.body.fps).toEqual({ type: 'FPS', value: 60, line: 1 });
+    expect(ast.profiles['testProfile']?.body.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1, column: 30, length: 9 });
+    expect(ast.profiles['testProfile']?.body.fps).toEqual({ type: 'FPS', value: 60, line: 1, column: 44, length: 2 });
   });
 
   it('should apply a profile using use', () => {
     const tokens = lexer('profile p1 { fps 30 } use p1');
     const ast = parseTokens(tokens);
-    expect(ast.fps).toEqual({ type: 'FPS', value: 30, line: 1 });
+    expect(ast.fps).toEqual({ type: 'FPS', value: 30, line: 1, column: 18, length: 2 });
   });
 
   it('should give inline configuration precedence over used profiles', () => {
     const tokens = lexer('profile p1 { fps 30 resize 1920x1080 } use p1 fps 60');
     const ast = parseTokens(tokens);
     // Inline fps 60 should overwrite profile's fps 30
-    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1 });
+    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1, column: 51, length: 2 });
     // But resize from profile should still be applied
-    expect(ast.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1 });
+    expect(ast.resize).toEqual({ type: 'RESIZE', width: 1920, height: 1080, line: 1, column: 28, length: 9 });
   });
 
   it('should give inline configuration precedence even if use is called after', () => {
     const tokens = lexer('profile p1 { fps 30 } fps 60 use p1');
     const ast = parseTokens(tokens);
     // Inline fps 60 should be preserved, use p1 should not overwrite it
-    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1 });
+    expect(ast.fps).toEqual({ type: 'FPS', value: 60, line: 1, column: 27, length: 2 });
   });
 
   it('should throw an error if using an undefined profile', () => {
