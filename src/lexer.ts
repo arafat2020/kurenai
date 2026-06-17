@@ -1,3 +1,5 @@
+import { CompilerError } from "./errors.js";
+
 /**
  * Defines the types of tokens that the lexer can recognize.
  */
@@ -10,6 +12,8 @@ export interface Token {
     type: TokenType;
     value: string;
     line: number;
+    column: number;
+    length: number;
 }
 
 /**
@@ -22,26 +26,22 @@ export interface Token {
 function lexer(input: string): Token[] {
     const tokens: Token[] = [];
     const lines = input.split('\n');
+    const tokenRegex = /([{}])|("[^"]*")|([^\s{}]+)/g;
 
     // Iterate through each line of the input
     for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
-        const line = (lines[lineNumber] ?? '').trim();
+        const line = lines[lineNumber] ?? '';
         
-        // Skip empty lines to ignore whitespace
-        if (line.length === 0) continue;
+        // Skip empty/whitespace-only lines
+        if (line.trim().length === 0) continue;
 
-        // Split on whitespace, then further split on brace boundaries
-        // so that "name{" becomes ["name", "{"] and "}" stays ["}"]
-        const rawWords = line.split(/\s+/);
-        const words: string[] = [];
-        for (const w of rawWords) {
-            // Split around { and } while keeping them as separate tokens
-            const parts = w.split(/([{}])/).filter(p => p.length > 0);
-            words.push(...parts);
-        }
-        
-        // Categorize each extracted word into a specific TokenType
-        for (const word of words) {
+        tokenRegex.lastIndex = 0;
+        let match: RegExpExecArray | null;
+
+        while ((match = tokenRegex.exec(line)) !== null) {
+            const word = match[0];
+            const column = match.index + 1;
+            const length = word.length;
             let tokenType: TokenType;
 
             if (word === '{') {
@@ -63,16 +63,17 @@ function lexer(input: string): Token[] {
             } else if (isTime(word)) {
                 tokenType = 'TIME';
             } else {
-                throw new Error(`Unknown token: ${word} at line ${lineNumber + 1}`);
+                throw new CompilerError(`Unknown token: ${word}`, lineNumber + 1, column, length);
             }
 
             // Push the classified token to our tokens array
-            tokens.push({ type: tokenType, value: word, line: lineNumber + 1 });
+            tokens.push({ type: tokenType, value: word, line: lineNumber + 1, column, length });
         }
     }
 
     return tokens;
 }
+
 
 // ── Helper functions for token categorization ──
 
