@@ -7,6 +7,7 @@ import { parseTokens } from "./parser.js";
 import { analyze } from "./analyzer.js";
 import { generate } from "./codegen.js";
 import { explain } from "./explain.js";
+import { CompilerError } from "./errors.js";
 
 const program = new Command();
 
@@ -40,6 +41,28 @@ function readFile(filePath: string): string {
 }
 
 /**
+ * Centrally format and report errors, printing a detailed 3-part layout if it's a CompilerError.
+ */
+function handleError(err: unknown, source: string, stage: string): void {
+    if (err instanceof CompilerError) {
+        const lines = source.split('\n');
+        const lineText = lines[err.line - 1] ?? '';
+        
+        console.error(`Error on line ${err.line}:`);
+        console.error(`  ${lineText}`);
+        
+        const padding = ' '.repeat(2 + (err.column - 1));
+        const underlines = '^'.repeat(err.length);
+        console.error(`${padding}${underlines}`);
+        console.error(`  ${err.message}`);
+    } else if (err instanceof Error) {
+        console.error(`${stage} Error: ${err.message}`);
+    } else {
+        console.error(`An unknown error occurred during ${stage.toLowerCase()}.`);
+    }
+}
+
+/**
  * CLI Command: validate
  * Parses and analyzes the given script without generating ffmpeg commands.
  * Useful for syntax and logic checking.
@@ -55,11 +78,7 @@ program
             analyze(ast);
             console.log("File is valid.");
         } catch (err) {
-            if (err instanceof Error) {
-                console.error(`Validation Error: ${err.message}`);
-            } else {
-                console.error("An unknown error occurred during validation.");
-            }
+            handleError(err, source, "Validation");
             process.exit(1);
         }
     });
@@ -94,11 +113,7 @@ program
 
             commands.forEach((cmd) => console.log(cmd));
         } catch (err) {
-            if (err instanceof Error) {
-                console.error(`Compilation Error: ${err.message}`);
-            } else {
-                console.error("An unknown error occurred during compilation.");
-            }
+            handleError(err, source, "Compilation");
             process.exit(1);
         }
     });
@@ -120,11 +135,7 @@ program
             const commands = generate(ast);
             explain(ast, commands);
         } catch (err) {
-            if (err instanceof Error) {
-                console.error(`Explain Error: ${err.message}`);
-            } else {
-                console.error("An unknown error occurred during explain.");
-            }
+            handleError(err, source, "Explain");
             process.exit(1);
         }
     });
@@ -150,13 +161,10 @@ program
                 execSync(cmd, { stdio: "inherit" });
             }
         } catch (err) {
-            if (err instanceof Error) {
-                console.error(`Execution Error: ${err.message}`);
-            } else {
-                console.error("An unknown error occurred during execution.");
-            }
+            handleError(err, source, "Execution");
             process.exit(1);
         }
     });
 
 program.parse(process.argv);
+

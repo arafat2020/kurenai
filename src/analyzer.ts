@@ -1,4 +1,5 @@
-import { Program, VideoCodec, AudioCodec, WatermarkPosition } from "./parser";
+import { Program, VideoCodec, AudioCodec, WatermarkPosition } from "./parser.js";
+import { CompilerError } from "./errors.js";
 
 /**
  * Defines the video file extensions supported by Kurenai.
@@ -19,11 +20,12 @@ export enum SupportedVideoFormat {
 /**
  * Validates the input file node to ensure it exists and has a supported extension.
  * @param input The parsed InputNode
- * @throws Error if input is missing or format is unsupported
+ * @param program The root Program AST
+ * @throws CompilerError if input is missing or format is unsupported
  */
-function analyzeInput(input: Program['input']): void {
+function analyzeInput(input: Program['input'], program: Program): void {
     if (!input) {
-        throw new Error("Input file is missing.");
+        throw new CompilerError("Input file is missing.", program.line, program.column, program.length);
     }
 
     const inputExtension = input.value.includes('.') 
@@ -33,18 +35,19 @@ function analyzeInput(input: Program['input']): void {
     const supportedFormats = Object.values(SupportedVideoFormat) as string[];
     
     if (!supportedFormats.includes(inputExtension)) {
-        throw new Error(`Unsupported input format: ${inputExtension || 'No extension provided'}`);
+        throw new CompilerError(`Unsupported input format: ${inputExtension || 'No extension provided'}`, input.line, input.column, input.length);
     }
 }
 
 /**
  * Validates the output file node to ensure it exists and has a supported extension.
  * @param output The parsed OutputNode
- * @throws Error if output is missing or format is unsupported
+ * @param program The root Program AST
+ * @throws CompilerError if output is missing or format is unsupported
  */
-function analyzeOutput(output: Program['output']): void {
+function analyzeOutput(output: Program['output'], program: Program): void {
     if (!output) {
-        throw new Error("Output file is missing.");
+        throw new CompilerError("Output file is missing.", program.line, program.column, program.length);
     }
 
     const outputExtension = output.value.includes('.') 
@@ -54,7 +57,7 @@ function analyzeOutput(output: Program['output']): void {
     const supportedFormats = Object.values(SupportedVideoFormat) as string[];
     
     if (!supportedFormats.includes(outputExtension)) {
-        throw new Error(`Unsupported output format: ${outputExtension || 'No extension provided'}`);
+        throw new CompilerError(`Unsupported output format: ${outputExtension || 'No extension provided'}`, output.line, output.column, output.length);
     }
 }
 
@@ -62,13 +65,13 @@ function analyzeOutput(output: Program['output']): void {
  * Validates the frames per second (FPS) configuration.
  * FPS must be a reasonable positive number (between 1 and 240).
  * @param fps The parsed FpsNode
- * @throws Error if FPS is out of bounds
+ * @throws CompilerError if FPS is out of bounds
  */
 function analyzeFps(fps: Program['fps']): void {
     if (!fps) return;
 
     if (fps.value <= 0 || fps.value > 240) {
-        throw new Error(`Invalid FPS value: ${fps.value}. FPS must be a positive number between 1 and 240.`);
+        throw new CompilerError(`Invalid FPS value: ${fps.value}. FPS must be a positive number between 1 and 240.`, fps.line, fps.column, fps.length);
     }
 }
 
@@ -76,36 +79,36 @@ function analyzeFps(fps: Program['fps']): void {
  * Validates the resize (resolution) configuration.
  * Width and height must be positive and divisible by 2 (required by many video encoders).
  * @param resize The parsed ResizeNode
- * @throws Error if dimensions are invalid or not divisible by 2
+ * @throws CompilerError if dimensions are invalid or not divisible by 2
  */
 function analyzeResize(resize: Program['resize']): void {
     if (!resize) return;
 
     if (resize.width <= 0 || resize.height <= 0) {
-        throw new Error(`Invalid resize values: ${resize.width}x${resize.height}. Width and height must be greater than 0.`);
+        throw new CompilerError(`Invalid resize values: ${resize.width}x${resize.height}. Width and height must be greater than 0.`, resize.line, resize.column, resize.length);
     }
 
     if (resize.width % 2 !== 0 || resize.height % 2 !== 0) {
-        throw new Error(`Invalid resize values: ${resize.width}x${resize.height}. Width and height must be divisible by 2 for ffmpeg compatibility.`);
+        throw new CompilerError(`Invalid resize values: ${resize.width}x${resize.height}. Width and height must be divisible by 2 for ffmpeg compatibility.`, resize.line, resize.column, resize.length);
     }
 }
 
 /**
  * Validates the chosen video and audio codecs against the supported lists.
  * @param encode The parsed EncodeNode
- * @throws Error if an unsupported codec is provided
+ * @throws CompilerError if an unsupported codec is provided
  */
 function analyzeEncode(encode: Program['encode']): void {
     if (!encode) return;
 
     const supportedVideoCodecs = Object.values(VideoCodec) as string[];
     if (!supportedVideoCodecs.includes(encode.videoCodec)) {
-        throw new Error(`Unsupported video codec: ${encode.videoCodec}`);
+        throw new CompilerError(`Unsupported video codec: ${encode.videoCodec}`, encode.line, encode.column, encode.length);
     }
 
     const supportedAudioCodecs = Object.values(AudioCodec) as string[];
     if (!supportedAudioCodecs.includes(encode.audioCodec)) {
-        throw new Error(`Unsupported audio codec: ${encode.audioCodec}`);
+        throw new CompilerError(`Unsupported audio codec: ${encode.audioCodec}`, encode.line, encode.column, encode.length);
     }
 }
 
@@ -113,18 +116,18 @@ function analyzeEncode(encode: Program['encode']): void {
  * Validates the watermark configuration, ensuring the file path is provided
  * and the position is a known valid position.
  * @param watermark The parsed WatermarkNode
- * @throws Error if file path is empty or position is unsupported
+ * @throws CompilerError if file path is empty or position is unsupported
  */
 function analyzeWatermark(watermark: Program['watermark']): void {
     if (!watermark) return;
 
     if (!watermark.file || watermark.file.trim() === '') {
-        throw new Error("Watermark file path cannot be empty.");
+        throw new CompilerError("Watermark file path cannot be empty.", watermark.line, watermark.column, watermark.length);
     }
 
     const supportedPositions = Object.values(WatermarkPosition) as string[];
     if (!supportedPositions.includes(watermark.position)) {
-        throw new Error(`Unsupported watermark position: ${watermark.position}`);
+        throw new CompilerError(`Unsupported watermark position: ${watermark.position}`, watermark.line, watermark.column, watermark.length);
     }
 }
 
@@ -136,8 +139,8 @@ function analyzeWatermark(watermark: Program['watermark']): void {
  * @param code The fully parsed Program AST
  */
 export function analyze(code: Program): void {
-    analyzeInput(code.input);
-    analyzeOutput(code.output);
+    analyzeInput(code.input, code);
+    analyzeOutput(code.output, code);
     analyzeFps(code.fps);
     analyzeResize(code.resize);
     analyzeEncode(code.encode);

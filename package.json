@@ -7,8 +7,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
-    "start": "tsx src/main.ts",
+    "build": "node api.js && tsc",
+    "start": "node api.js && tsx src/main.ts",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },

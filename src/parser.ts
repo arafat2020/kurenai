@@ -1,4 +1,5 @@
 import { type Token } from "./lexer.js";
+import { CompilerError } from "./errors.js";
 
 /**
  * Base interface for all Abstract Syntax Tree (AST) nodes.
@@ -7,6 +8,8 @@ import { type Token } from "./lexer.js";
 interface ASTNode {
     type: string;
     line: number;
+    column: number;
+    length: number;
 }
 
 // Codec Enums
@@ -117,7 +120,13 @@ interface Program extends ASTNode {
  */
 const parseTokens = (tokens: Token[]): Program => {
     // Initialize an empty program object to store parsed commands
-    const program: Partial<Program> = { profiles: {} };
+    const program: Partial<Program> = {
+        type: 'PROGRAM',
+        line: tokens[0]?.line ?? 1,
+        column: tokens[0]?.column ?? 1,
+        length: tokens[0]?.length ?? 0,
+        profiles: {}
+    };
 
     /**
      * Helper function to parse individual commands.
@@ -138,76 +147,90 @@ const parseTokens = (tokens: Token[]): Program => {
         const token = tokens[i]!;
 
         switch (keyword) {
-            case 'input':
+            case 'input': {
                 const nextInputToken = tokens[i + 1];
 
                 if (nextInputToken === undefined || nextInputToken.type !== 'STRING') {
-                    throw new Error("File source is required");
+                    const errToken = nextInputToken ?? token;
+                    throw new CompilerError("File source is required", errToken.line, errToken.column, errToken.length);
                 }
                 target.input = {
                     type: 'INPUT',
                     value: nextInputToken.value.replace(/"/g, ''),
-                    line: token.line
-                }
+                    line: nextInputToken.line,
+                    column: nextInputToken.column,
+                    length: nextInputToken.length
+                };
                 return i + 1;
-            case 'output':
+            }
+            case 'output': {
                 const nextOutputToken = tokens[i + 1];
 
                 if (nextOutputToken === undefined) {
-                    throw new Error("File source is required");
+                    throw new CompilerError("File source is required", token.line, token.column, token.length);
                 }
                 if (nextOutputToken.type !== 'STRING') {
-                    throw new Error("Value must be a valid source");
+                    throw new CompilerError("Value must be a valid source", nextOutputToken.line, nextOutputToken.column, nextOutputToken.length);
                 }
 
                 target.output = {
                     type: 'OUTPUT',
                     value: nextOutputToken.value.replace(/"/g, ''),
-                    line: token.line
-                }
+                    line: nextOutputToken.line,
+                    column: nextOutputToken.column,
+                    length: nextOutputToken.length
+                };
                 return i + 1;
-            case 'resize':
+            }
+            case 'resize': {
                 const nextResizeToken = tokens[i + 1];
                 if (nextResizeToken === undefined) {
-                    throw new Error("Resize value is required");
+                    throw new CompilerError("Resize value is required", token.line, token.column, token.length);
                 }
                 if (nextResizeToken.type !== 'RESOLUTION') {
-                    throw new Error("Resolution Value must be a valid source. Eg 1280x720");
+                    throw new CompilerError("Resolution Value must be a valid source. Eg 1280x720", nextResizeToken.line, nextResizeToken.column, nextResizeToken.length);
                 }
-                const splitResolutionValue = tokens[i + 1]?.value.split("x")
-                if (!splitResolutionValue || splitResolutionValue.length !== 2) {
-                    throw new Error("Resolution value must be in the format WIDTHxHEIGHT. Eg 1280x720");
+                const splitResolutionValue = nextResizeToken.value.split("x");
+                if (splitResolutionValue.length !== 2) {
+                    throw new CompilerError("Resolution value must be in the format WIDTHxHEIGHT. Eg 1280x720", nextResizeToken.line, nextResizeToken.column, nextResizeToken.length);
                 }
                 target.resize = {
                     type: "RESIZE",
                     width: parseInt(splitResolutionValue[0]!),
                     height: parseInt(splitResolutionValue[1]!),
-                    line: token.line
-                }
+                    line: nextResizeToken.line,
+                    column: nextResizeToken.column,
+                    length: nextResizeToken.length
+                };
                 return i + 1;
-            case 'fps':
+            }
+            case 'fps': {
                 const nextFpsToken = tokens[i + 1];
                 if (nextFpsToken === undefined) {
-                    throw new Error("FPS value is required");
+                    throw new CompilerError("FPS value is required", token.line, token.column, token.length);
                 }
                 if (nextFpsToken.type !== 'NUMBER') {
-                    throw new Error("FPS value must be a number");
+                    throw new CompilerError("FPS value must be a number", nextFpsToken.line, nextFpsToken.column, nextFpsToken.length);
                 }
                 target.fps = {
                     type: "FPS",
                     value: parseInt(nextFpsToken.value),
-                    line: token.line
-                }
+                    line: nextFpsToken.line,
+                    column: nextFpsToken.column,
+                    length: nextFpsToken.length
+                };
                 return i + 1;
-            case 'encode':
+            }
+            case 'encode': {
                 const nextEncodeToken = tokens[i + 1];
                 const nextNextEncodeToken = tokens[i + 2];
 
                 if (nextEncodeToken === undefined || nextNextEncodeToken === undefined) {
-                    throw new Error("Both video and audio codecs are required for encoding");
+                    throw new CompilerError("Both video and audio codecs are required for encoding", token.line, token.column, token.length);
                 }
                 if (nextEncodeToken.type !== 'IDENTIFIER' || nextNextEncodeToken.type !== 'IDENTIFIER') {
-                    throw new Error("Codec values must be valid keywords");
+                    const errToken = nextEncodeToken.type !== 'IDENTIFIER' ? nextEncodeToken : nextNextEncodeToken;
+                    throw new CompilerError("Codec values must be valid keywords", errToken.line, errToken.column, errToken.length);
                 }
 
                 const videoCodec = nextEncodeToken.value as VideoCodec;
@@ -216,46 +239,56 @@ const parseTokens = (tokens: Token[]): Program => {
                     type: "ENCODE",
                     videoCodec,
                     audioCodec,
-                    line: token.line
-                }
+                    line: token.line,
+                    column: token.column,
+                    length: (nextNextEncodeToken.column + nextNextEncodeToken.length) - token.column
+                };
                 return i + 2;
-            case 'bitrate':
+            }
+            case 'bitrate': {
                 const nextBitrateToken = tokens[i + 1];
                 if (nextBitrateToken === undefined) {
-                    throw new Error("Bitrate value is required");
+                    throw new CompilerError("Bitrate value is required", token.line, token.column, token.length);
                 }
                 if (nextBitrateToken.type !== 'BITRATE') {
-                    throw new Error("Bitrate value must be a string with units, e.g. '500k' or '2M'");
+                    throw new CompilerError("Bitrate value must be a string with units, e.g. '500k' or '2M'", nextBitrateToken.line, nextBitrateToken.column, nextBitrateToken.length);
                 }
                 target.bitrate = {
                     type: "BITRATE",
                     value: nextBitrateToken.value,
-                    line: token.line
-                }
+                    line: nextBitrateToken.line,
+                    column: nextBitrateToken.column,
+                    length: nextBitrateToken.length
+                };
                 return i + 1;
-            case 'audio':
+            }
+            case 'audio': {
                 const nextAudioToken = tokens[i + 1];
                 if (nextAudioToken === undefined) {
-                    throw new Error("Audio value is required");
+                    throw new CompilerError("Audio value is required", token.line, token.column, token.length);
                 }
                 if (nextAudioToken.type !== 'IDENTIFIER') {
-                    throw new Error("Audio value must be a string with the audio file path, e.g. 'audio.mp3'");
+                    throw new CompilerError("Audio value must be a string with the audio file path, e.g. 'audio.mp3'", nextAudioToken.line, nextAudioToken.column, nextAudioToken.length);
                 }
                 target.audio = {
                     type: "AUDIO",
                     value: nextAudioToken.value.replace(/"/g, ''),
-                    line: token.line
-                }
+                    line: nextAudioToken.line,
+                    column: nextAudioToken.column,
+                    length: nextAudioToken.length
+                };
                 return i + 1;
-            case 'watermark':
+            }
+            case 'watermark': {
                 const nextWatermarkToken = tokens[i + 1];
                 const nextNextWatermarkToken = tokens[i + 2];
 
                 if (nextWatermarkToken === undefined || nextNextWatermarkToken === undefined) {
-                    throw new Error("Both watermark file and position are required for watermarking");
+                    throw new CompilerError("Both watermark file and position are required for watermarking", token.line, token.column, token.length);
                 }
                 if (nextWatermarkToken.type !== 'STRING' || nextNextWatermarkToken.type !== 'IDENTIFIER') {
-                    throw new Error("Watermark file must be a string and position must be a valid keyword");
+                    const errToken = nextWatermarkToken.type !== 'STRING' ? nextWatermarkToken : nextNextWatermarkToken;
+                    throw new CompilerError("Watermark file must be a string and position must be a valid keyword", errToken.line, errToken.column, errToken.length);
                 }
 
                 const watermarkFile = nextWatermarkToken.value.replace(/"/g, '');
@@ -264,33 +297,39 @@ const parseTokens = (tokens: Token[]): Program => {
                     type: "WATERMARK",
                     file: watermarkFile,
                     position: watermarkPosition,
-                    line: token.line
-                }
+                    line: token.line,
+                    column: token.column,
+                    length: (nextNextWatermarkToken.column + nextNextWatermarkToken.length) - token.column
+                };
                 return i + 2;
-            case 'thumbnail':
+            }
+            case 'thumbnail': {
                 const nextThumbnailToken = tokens[i + 1];
                 if (nextThumbnailToken === undefined) {
-                    throw new Error("Thumbnail value is required");
+                    throw new CompilerError("Thumbnail value is required", token.line, token.column, token.length);
                 }
                 if (nextThumbnailToken.type !== 'TIME') {
-                    throw new Error("Thumbnail value must be a time value, e.g. '5s'");
+                    throw new CompilerError("Thumbnail value must be a time value, e.g. '5s'", nextThumbnailToken.line, nextThumbnailToken.column, nextThumbnailToken.length);
                 }
                 target.thumbnail = {
                     type: "THUMBNAIL",
                     value: nextThumbnailToken.value,
-                    line: token.line
-                }
+                    line: nextThumbnailToken.line,
+                    column: nextThumbnailToken.column,
+                    length: nextThumbnailToken.length
+                };
                 return i + 1;
-            case 'profile':
+            }
+            case 'profile': {
                 // Profiles allow reusing configuration blocks.
                 // Syntax: profile NAME { ...commands }
                 const nameToken = tokens[i + 1];
                 if (!nameToken || nameToken.type !== 'IDENTIFIER') {
-                    throw new Error("Profile name is required");
+                    throw new CompilerError("Profile name is required", token.line, token.column, token.length);
                 }
                 const lbraceToken = tokens[i + 2];
                 if (!lbraceToken || lbraceToken.type !== 'LBRACE') {
-                    throw new Error("Expected { after profile name");
+                    throw new CompilerError("Expected { after profile name", nameToken.line, nameToken.column, nameToken.length);
                 }
                 
                 const profileBody: Partial<Program> = {};
@@ -298,7 +337,7 @@ const parseTokens = (tokens: Token[]): Program => {
                 while (j < tokens.length) {
                     const innerToken = tokens[j];
                     if (!innerToken) {
-                        throw new Error("Unexpected end of file inside profile");
+                        throw new CompilerError("Unexpected end of file inside profile", lbraceToken.line, lbraceToken.column, lbraceToken.length);
                     }
                     if (innerToken.type === 'RBRACE') {
                         break;
@@ -306,30 +345,39 @@ const parseTokens = (tokens: Token[]): Program => {
                     if (innerToken.type === 'KEYWORD') {
                         j = parseCommand(innerToken.value, tokens, j, profileBody);
                     } else {
-                        throw new Error(`Unexpected token "${innerToken.value}" at line ${innerToken.line}`);
+                        throw new CompilerError(`Unexpected token "${innerToken.value}" at line ${innerToken.line}`, innerToken.line, innerToken.column, innerToken.length);
                     }
                     j++;
                 }
+
+                if (j >= tokens.length) {
+                    throw new CompilerError("Expected } at the end of profile", lbraceToken.line, lbraceToken.column, lbraceToken.length);
+                }
+
+                const rbraceToken = tokens[j]!;
                 
                 if (!program.profiles) program.profiles = {};
                 program.profiles[nameToken.value] = {
                     type: 'PROFILE',
                     name: nameToken.value,
                     body: profileBody as any,
-                    line: token.line
+                    line: token.line,
+                    column: token.column,
+                    length: (rbraceToken.column + rbraceToken.length) - token.column
                 };
                 return j;
-            case 'use':
+            }
+            case 'use': {
                 // The use command applies a previously defined profile.
                 // Inline commands take precedence over profile values.
                 const useNameToken = tokens[i + 1];
                 if (!useNameToken || useNameToken.type !== 'IDENTIFIER') {
-                    throw new Error("Profile name is required for use");
+                    throw new CompilerError("Profile name is required for use", token.line, token.column, token.length);
                 }
                 const profileName = useNameToken.value;
                 const profile = program.profiles?.[profileName];
                 if (!profile) {
-                    throw new Error(`Profile "${profileName}" not found at line ${token.line}`);
+                    throw new CompilerError(`Profile "${profileName}" not found at line ${token.line}`, useNameToken.line, useNameToken.column, useNameToken.length);
                 }
                 for (const [key, value] of Object.entries(profile.body)) {
                     if (!(key in target)) {
@@ -337,8 +385,9 @@ const parseTokens = (tokens: Token[]): Program => {
                     }
                 }
                 return i + 1;
+            }
             default:
-                throw new Error(`Unknown keyword: ${keyword} at line ${token.line}`);
+                throw new CompilerError(`Unknown keyword: ${keyword}`, token.line, token.column, token.length);
         }
     }
 
@@ -354,7 +403,7 @@ const parseTokens = (tokens: Token[]): Program => {
         if (token.type === 'KEYWORD') {
             i = parseCommand(token.value, tokens, i, program);
         } else {
-            throw new Error(`Unexpected token "${token.value}" at line ${token.line}`);
+            throw new CompilerError(`Unexpected token "${token.value}"`, token.line, token.column, token.length);
         }
 
         i++;
