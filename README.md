@@ -21,7 +21,7 @@
 You can install Kurenai globally via npm:
 
 ```bash
-npm install -g kurenai
+npm install -g @arafat2020/kurenai
 ```
 
 *(Note: Ensure you have `ffmpeg` installed on your system if you intend to execute the generated commands)*
