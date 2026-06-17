@@ -1,6 +1,6 @@
 {
   "name": "@arafat2020/kurenai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A DSL compiler that converts human-readable video pipeline scripts into FFmpeg commands",
   "main": "./dist/main.js",
   "files": [
