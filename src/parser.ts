@@ -45,10 +45,17 @@ interface InputNode extends ASTNode {
     value: string;
 }
 
-interface OutputNode extends ASTNode {
-    type: 'OUTPUT';
-    value: string;
+
+interface OutputBlockNode extends ASTNode {
+    type: 'OUTPUT_BLOCK';
+    file: string;
+    overrides: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
 }
+
+// interface OutputNode extends ASTNode {
+//     type: 'OUTPUT';
+//     value: string;
+// }
 
 interface ResizeNode extends ASTNode {
     type: 'RESIZE';
@@ -101,7 +108,7 @@ interface ProfileNode extends ASTNode {
  */
 interface Program extends ASTNode {
     input: InputNode;
-    output: OutputNode;
+    outputs: OutputBlockNode[];
     resize?: ResizeNode;
     fps?: FpsNode;
     encode?: EncodeNode;
@@ -125,7 +132,8 @@ const parseTokens = (tokens: Token[]): Program => {
         line: tokens[0]?.line ?? 1,
         column: tokens[0]?.column ?? 1,
         length: tokens[0]?.length ?? 0,
-        profiles: {}
+        profiles: {},
+        outputs: []
     };
 
     /**
@@ -173,14 +181,49 @@ const parseTokens = (tokens: Token[]): Program => {
                     throw new CompilerError("Value must be a valid source", nextOutputToken.line, nextOutputToken.column, nextOutputToken.length);
                 }
 
-                target.output = {
-                    type: 'OUTPUT',
-                    value: nextOutputToken.value.replace(/"/g, ''),
-                    line: nextOutputToken.line,
-                    column: nextOutputToken.column,
-                    length: nextOutputToken.length
-                };
-                return i + 1;
+                const fileValue = nextOutputToken.value.replace(/"/g, '');
+                let overrides: Partial<Program> = {};
+                let j = i + 1;
+                let endToken = nextOutputToken;
+
+                const lbraceToken = tokens[j + 1];
+                if (lbraceToken && lbraceToken.type === 'LBRACE') {
+                    j += 2;
+                    while (j < tokens.length) {
+                        const innerToken = tokens[j];
+                        if (!innerToken) {
+                            throw new CompilerError("Unexpected end of file inside output block", lbraceToken.line, lbraceToken.column, lbraceToken.length);
+                        }
+                        if (innerToken.type === 'RBRACE') {
+                            endToken = innerToken;
+                            break;
+                        }
+                        if (innerToken.type === 'KEYWORD') {
+                            j = parseCommand(innerToken.value, tokens, j, overrides);
+                        } else {
+                            throw new CompilerError(`Unexpected token "${innerToken.value}" at line ${innerToken.line}`, innerToken.line, innerToken.column, innerToken.length);
+                        }
+                        j++;
+                    }
+
+                    if (j >= tokens.length) {
+                        throw new CompilerError("Expected } at the end of output block", lbraceToken.line, lbraceToken.column, lbraceToken.length);
+                    }
+                }
+
+                if (!target.outputs) {
+                    target.outputs = [];
+                }
+
+                target.outputs.push({
+                    type: 'OUTPUT_BLOCK',
+                    file: fileValue,
+                    overrides: overrides as any,
+                    line: token.line,
+                    column: token.column,
+                    length: (endToken.column + endToken.length) - token.column
+                });
+                return j;
             }
             case 'resize': {
                 const nextResizeToken = tokens[i + 1];

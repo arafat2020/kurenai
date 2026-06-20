@@ -76,9 +76,15 @@ input "video.mp4"
 ```
 
 ### `output`
-Specifies the final output video file.
+Specifies the final output video file(s). You can define multiple outputs and provide output-specific overrides inside a block `{ ... }`. This allows you to generate multiple formats or resolutions in one script!
 ```kurenai
 output "final_video.mp4"
+output "youtube.mp4" { 
+    resize 1920x1080 
+}
+output "mobile.mp4" { 
+    resize 720x1280 
+}
 ```
 
 ### `resize`
@@ -146,12 +152,17 @@ encode h264 aac
 bitrate 2500k
 watermark "watermark.png" top-left
 thumbnail 2s
+
 output "processed_footage.mp4"
+output "mobile_footage.mp4" {
+    resize 720x1280
+}
 ```
 
 **Running `kurenai compile example.crn` generates:**
 ```bash
 ffmpeg -i raw_footage.mkv -vf "scale=1280:720,fps=30" -c:v libx264 -c:a aac -b:v 2500k -i watermark.png -filter_complex "overlay=10:10" processed_footage.mp4
+ffmpeg -i raw_footage.mkv -vf "scale=720:1280,fps=30" -c:v libx264 -c:a aac -b:v 2500k -i watermark.png -filter_complex "overlay=10:10" mobile_footage.mp4
 ffmpeg -i raw_footage.mkv -ss 2 -frames:v 1 thumb.jpg
 ```
 

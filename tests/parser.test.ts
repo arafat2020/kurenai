@@ -7,7 +7,7 @@ describe('Parser Tests', () => {
     const tokens = lexer('input "test.mp4" output "result.mp4"');
     const ast = parseTokens(tokens);
     expect(ast.input).toEqual({ type: 'INPUT', value: 'test.mp4', line: 1, column: 7, length: 10 });
-    expect(ast.output).toEqual({ type: 'OUTPUT', value: 'result.mp4', line: 1, column: 25, length: 12 });
+    expect(ast.outputs[0]).toEqual({ type: 'OUTPUT_BLOCK', file: 'result.mp4', overrides: {}, line: 1, column: 18, length: 19 });
   });
 
   it('should parse resize with 1920x1080', () => {
@@ -72,7 +72,7 @@ output "final.mp4"`;
     expect(ast.bitrate?.value).toBe('3000k');
     expect(ast.watermark?.file).toBe('logo.png');
     expect(ast.thumbnail?.value).toBe('5s');
-    expect(ast.output?.value).toBe('final.mp4');
+    expect(ast.outputs[0]?.file).toBe('final.mp4');
   });
 
   it('should throw error for missing input value', () => {
@@ -140,5 +140,22 @@ output "final.mp4"`;
   it('should throw an error if using an undefined profile', () => {
     const tokens = lexer('use notFoundProfile');
     expect(() => parseTokens(tokens)).toThrow(/not found/);
+  });
+
+  it('should parse multiple outputs with override blocks', () => {
+    const src = `input "video.mp4"
+output "youtube.mp4" { resize 1920x1080 }
+output "mobile.mp4" { resize 720x1280 }`;
+    const tokens = lexer(src);
+    const ast = parseTokens(tokens);
+
+    expect(ast.outputs.length).toBe(2);
+    expect(ast.outputs[0]?.file).toBe('youtube.mp4');
+    expect(ast.outputs[0]?.overrides.resize?.width).toBe(1920);
+    expect(ast.outputs[0]?.overrides.resize?.height).toBe(1080);
+    
+    expect(ast.outputs[1]?.file).toBe('mobile.mp4');
+    expect(ast.outputs[1]?.overrides.resize?.width).toBe(720);
+    expect(ast.outputs[1]?.overrides.resize?.height).toBe(1280);
   });
 });
