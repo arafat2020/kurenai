@@ -33,43 +33,50 @@ const positionMap: Record<string, string> = {
  * @returns An array of ffmpeg command strings ready for execution
  */
 export function generate(program:Program): string[] {
-    let mainCommand = `ffmpeg -i ${program.input.value}`;
+    const commands: string[] = [];
 
-    const vfFilters: string[] = [];
+    for (const out of program.outputs) {
+        let cmd = `ffmpeg -i ${program.input.value}`;
+        const merged = { ...program, ...out.overrides };
+        const vfFilters: string[] = [];
 
-    if (program.resize) {
-        vfFilters.push(`scale=${program.resize.width}:${program.resize.height}`);
+        if (merged.resize) {
+            vfFilters.push(`scale=${merged.resize.width}:${merged.resize.height}`);
+        }
+
+        if (merged.fps) {
+            vfFilters.push(`fps=${merged.fps.value}`);
+        }
+
+        let outOptions = "";
+
+        if (vfFilters.length > 0) {
+            outOptions += ` -vf "${vfFilters.join(',')}"`;
+        }
+
+        if (merged.encode) {
+            const vCodec = videoCodecMap[merged.encode.videoCodec] || merged.encode.videoCodec;
+            outOptions += ` -c:v ${vCodec} -c:a ${merged.encode.audioCodec}`;
+        }
+
+        if (merged.bitrate) {
+            outOptions += ` -b:v ${merged.bitrate.value}`;
+        }
+
+        if (merged.audio) {
+            outOptions += ` -c:a ${merged.audio.value}`;
+        }
+
+        if (merged.watermark) {
+            const position = positionMap[merged.watermark.position] || '10:10';
+            // The watermark file is a secondary input and MUST go before output options
+            cmd += ` -i ${merged.watermark.file}`;
+            outOptions += ` -filter_complex "overlay=${position}"`;
+        }
+
+        cmd += `${outOptions} ${out.file}`;
+        commands.push(cmd);
     }
-
-    if (program.fps) {
-        vfFilters.push(`fps=${program.fps.value}`);
-    }
-
-    if (vfFilters.length > 0) {
-        mainCommand += ` -vf "${vfFilters.join(',')}"`;
-    }
-
-    if (program.encode) {
-        const vCodec = videoCodecMap[program.encode.videoCodec] || program.encode.videoCodec;
-        mainCommand += ` -c:v ${vCodec} -c:a ${program.encode.audioCodec}`;
-    }
-
-    if (program.bitrate) {
-        mainCommand += ` -b:v ${program.bitrate.value}`;
-    }
-
-    if (program.audio) {
-        mainCommand += ` -c:a ${program.audio.value}`;
-    }
-
-    if (program.watermark) {
-        const position = positionMap[program.watermark.position] || '10:10';
-        mainCommand += ` -i ${program.watermark.file} -filter_complex "overlay=${position}"`;
-    }
-
-    mainCommand += ` ${program.output.value}`;
-
-    const commands: string[] = [mainCommand];
 
     if (program.thumbnail) {
         const thumbCommand = `ffmpeg -i ${program.input.value} -ss ${program.thumbnail.value.replace('s', '')} -frames:v 1 thumb.jpg`;

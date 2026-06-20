@@ -45,13 +45,13 @@ function analyzeInput(input: Program['input'], program: Program): void {
  * @param program The root Program AST
  * @throws CompilerError if output is missing or format is unsupported
  */
-function analyzeOutput(output: Program['output'], program: Program): void {
+function analyzeOutput(output: Program['outputs'][number], program: Program): void {
     if (!output) {
-        throw new CompilerError("Output file is missing.", program.line, program.column, program.length);
+        throw new CompilerError("Output block is missing.", program.line, program.column, program.length);
     }
 
-    const outputExtension = output.value.includes('.') 
-        ? output.value.slice(output.value.lastIndexOf('.')).toLowerCase() 
+    const outputExtension = output.file.includes('.') 
+        ? output.file.slice(output.file.lastIndexOf('.')).toLowerCase() 
         : '';
         
     const supportedFormats = Object.values(SupportedVideoFormat) as string[];
@@ -140,7 +140,12 @@ function analyzeWatermark(watermark: Program['watermark']): void {
  */
 export function analyze(code: Program): void {
     analyzeInput(code.input, code);
-    analyzeOutput(code.output, code);
+    if (!code.outputs || code.outputs.length === 0) {
+        throw new CompilerError("Output file is missing.", code.line, code.column, code.length);
+    }
+    for (const output of code.outputs) {
+        analyzeOutput(output, code);
+    }
     analyzeFps(code.fps);
     analyzeResize(code.resize);
     analyzeEncode(code.encode);
