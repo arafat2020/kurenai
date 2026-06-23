@@ -1,34 +1,58 @@
 # Kurenai
 
-**Kurenai** is a lightweight, human-readable Domain Specific Language (DSL) and compiler for generating FFmpeg commands. It allows you to write clean, maintainable video processing pipelines without having to remember complex FFmpeg arguments and filtergraph syntax.
+Kurenai is a lightweight Domain Specific Language (DSL) and compiler for generating FFmpeg commands.
+
+Instead of memorizing complex FFmpeg flags and filter graphs, you can describe your video processing pipeline using a clean, human-readable syntax and let Kurenai generate the commands for you.
+
+---
 
 ## Features
 
-* **Human-readable syntax**
-  Define video transformations using simple, declarative scripts without boilerplate.
+* Human-readable video processing DSL
+* Generates valid FFmpeg commands
+* CLI and TypeScript API
+* Built-in semantic validation
+* Profile system for reusable configurations
+* Watermark support
+* Thumbnail extraction
+* Video resizing and frame rate conversion
+* Codec and bitrate configuration
+* Multi-stage compiler architecture
+* Detailed compilation diagnostics
 
-* **FFmpeg Code Generation**
-  Automatically generates optimized and syntactically correct FFmpeg commands.
-
-* **Built-in Execution**
-  Run your generated commands directly on your system using the CLI.
-
-* **Video & Image Processing**
-  Out-of-the-box support for resizing, changing FPS, encoding, watermarking, and extracting thumbnails.
+---
 
 ## Installation
 
-You can install Kurenai globally via npm:
+### Global CLI
 
 ```bash
 npm install -g @arafat2020/kurenai
 ```
 
-*(Note: Ensure you have `ffmpeg` installed on your system if you intend to execute the generated commands)*
+### Project Dependency
 
-## Usage
+```bash
+npm install @arafat2020/kurenai
+```
 
-Create a script file with a `.crn` extension (e.g., `pipeline.crn`):
+---
+
+## Requirements
+
+Kurenai generates FFmpeg commands.
+
+To execute generated commands you must have FFmpeg installed:
+
+```bash
+ffmpeg -version
+```
+
+---
+
+# Quick Example
+
+### example.crn
 
 ```kurenai
 input "input.mp4"
@@ -45,32 +69,90 @@ thumbnail 5s
 output "output.mp4"
 ```
 
-### CLI Commands
+### Generated Output
 
-Kurenai provides three main CLI commands to interact with your scripts:
+```bash
+ffmpeg -i input.mp4 \
+-vf "scale=1280:720,fps=30" \
+-c:v libx264 \
+-c:a aac \
+-b:v 3000k \
+output.mp4
 
-1. **`validate`**: Runs the lexer, parser, and analyzer to verify the syntax of your script without generating code.
-   ```bash
-   kurenai validate pipeline.crn
-   ```
+ffmpeg -i input.mp4 \
+-ss 5 \
+-frames:v 1 \
+thumb.jpg
+```
 
-2. **`compile`**: Compiles your script and prints the generated FFmpeg command(s) to the console.
-   ```bash
-   kurenai compile pipeline.crn
-   ```
-   *Add the `--verbose` flag to see a detailed breakdown of the compilation stages (Lexing, Parsing, Analyzing, Generating).*
+---
 
-3. **`run`**: Compiles the script and immediately executes the generated FFmpeg command(s) on your system.
-   ```bash
-   kurenai run pipeline.crn
-   ```
+# CLI Usage
 
-## Language Syntax Guide
+## Validate
 
-A Kurenai script is composed of simple keywords and values. Here are the supported operations:
+Runs:
 
-### `input`
-Specifies the input video file.
+1. Lexing
+2. Parsing
+3. Semantic Analysis
+
+without generating commands.
+
+```bash
+kurenai validate pipeline.crn
+```
+
+---
+
+## Compile
+
+Generates FFmpeg commands.
+
+```bash
+kurenai compile pipeline.crn
+```
+
+Verbose mode:
+
+```bash
+kurenai compile pipeline.crn --verbose
+```
+
+Example output:
+
+```text
+[1/4] Lexing...
+✓ 25 tokens
+
+[2/4] Parsing...
+✓ AST built
+
+[3/4] Analyzing...
+✓ Valid
+
+[4/4] Generating...
+✓ Done
+```
+
+---
+
+## Run
+
+Compiles and executes generated FFmpeg commands.
+
+```bash
+kurenai run pipeline.crn
+```
+
+---
+
+# Language Reference
+
+---
+
+## Input
+
 ```kurenai
 input "video.mp4"
 ```
@@ -87,46 +169,124 @@ output "mobile.mp4" {
 }
 ```
 
-### `resize`
-Scales the video to the specified resolution (`width`x`height`). Both dimensions must be divisible by 2.
+Specifies the output file.
+
+---
+
+## Resize
+
 ```kurenai
 resize 1920x1080
 ```
 
-### `fps`
-Changes the frame rate of the video. Must be a positive integer between 1 and 240.
+Scales the video.
+
+Requirements:
+
+* Width must be divisible by 2
+* Height must be divisible by 2
+
+---
+
+## FPS
+
 ```kurenai
 fps 60
 ```
 
-### `encode`
-Sets the video and audio codecs. Supported video codecs include `h264`, `h265`, `vp8`, `vp9`, `av1`, `mpeg2video`, and `theora`.
+Changes frame rate.
+
+Allowed range:
+
+```text
+1 - 240
+```
+
+---
+
+## Encode
+
 ```kurenai
 encode h264 aac
 ```
 
-### `bitrate`
-Sets the video bitrate.
+Supported video codecs:
+
+```text
+h264
+h265
+vp8
+vp9
+av1
+mpeg2video
+theora
+```
+
+Supported audio codecs:
+
+```text
+aac
+mp3
+opus
+vorbis
+```
+
+---
+
+## Bitrate
+
 ```kurenai
 bitrate 5000k
 ```
 
-### `watermark`
-Overlays an image on the video. Supported positions: `top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`.
+Sets video bitrate.
+
+Examples:
+
+```kurenai
+bitrate 1000k
+bitrate 2500k
+bitrate 5000k
+```
+
+---
+
+## Watermark
+
 ```kurenai
 watermark "logo.png" bottom-right
 ```
 
-### `thumbnail`
-Extracts a single frame as a thumbnail image at the specified time. This automatically generates a separate FFmpeg command.
+Supported positions:
+
+```text
+top-left
+top-right
+bottom-left
+bottom-right
+center
+```
+
+---
+
+## Thumbnail
+
 ```kurenai
 thumbnail 10s
 ```
 
-### `profile` and `use`
-Profiles allow you to define reusable configuration blocks so you don't have to repeat the same encoding or filter settings across multiple videos.
+Generates an additional FFmpeg command that extracts a frame at the specified timestamp.
 
-Define a profile using the `profile` keyword:
+---
+
+# Profiles
+
+Profiles allow reusable encoding configurations.
+
+---
+
+## Define a Profile
+
 ```kurenai
 profile youtube_1080p {
     resize 1920x1080
@@ -135,19 +295,56 @@ profile youtube_1080p {
 }
 ```
 
-Apply the profile using the `use` keyword. **Note:** Inline configurations take precedence over profile configurations, meaning you can easily override specific fields!
+---
+
+## Use a Profile
+
 ```kurenai
 use youtube_1080p
-fps 30 # Overrides the 60 fps defined in the profile
+
+input "video.mp4"
+output "output.mp4"
 ```
 
-## Example
+---
 
-**`example.crn`**
+## Override Profile Values
+
+Inline values always take precedence.
+
 ```kurenai
-input "raw_footage.mkv"
-resize 1280x720
+use youtube_1080p
+
 fps 30
+
+input "video.mp4"
+output "output.mp4"
+```
+
+Result:
+
+```text
+Resolution: 1920x1080
+FPS: 30
+Codec: h264
+```
+
+---
+
+# TypeScript API
+
+Kurenai exposes both functional and class-based APIs.
+
+---
+
+## Compile
+
+```ts
+import { compile } from "@arafat2020/kurenai";
+
+const result = compile(`
+input "video.mp4"
+resize 1280x720
 encode h264 aac
 bitrate 2500k
 watermark "watermark.png" top-left
@@ -166,6 +363,63 @@ ffmpeg -i raw_footage.mkv -vf "scale=720:1280,fps=30" -c:v libx264 -c:a aac -b:v
 ffmpeg -i raw_footage.mkv -ss 2 -frames:v 1 thumb.jpg
 ```
 
-## License
+Throws a CompilerError if validation fails.
 
-This project is licensed under the [MIT License](LICENSE).
+---
+
+## Explain
+
+```ts
+const k = new Kurenai();
+
+k.explain(source);
+```
+
+Prints a human-readable breakdown of the compilation result.
+
+---
+
+# Compiler Pipeline
+
+Kurenai follows a traditional compiler architecture:
+
+```text
+Source
+  ↓
+Lexer
+  ↓
+Parser
+  ↓
+Semantic Analyzer
+  ↓
+Code Generator
+  ↓
+FFmpeg Commands
+```
+
+---
+
+# Error Handling
+
+All compilation errors throw a CompilerError.
+
+```ts
+import {
+  compile,
+  CompilerError
+} from "@arafat2020/kurenai";
+
+try {
+  compile(source);
+} catch (err) {
+  if (err instanceof CompilerError) {
+    console.error(err.message);
+  }
+}
+```
+
+---
+
+# License
+
+MIT License.
