@@ -287,7 +287,7 @@ describe('Error Handling — Analyzer', () => {
         length: 0,
         profiles: {},
         input:  { type: 'INPUT',  value: 'video.mp4', line: 1, column: 7,  length: 10 },
-        output: { type: 'OUTPUT', value: 'out.mp4',   line: 2, column: 8,  length: 8  },
+        outputs: [{ type: 'OUTPUT_BLOCK', file: 'out.mp4', overrides: {},   line: 2, column: 8,  length: 8  }],
         ...overrides,
     } as Program);
 
@@ -318,7 +318,7 @@ describe('Error Handling — Analyzer', () => {
     describe('output validation', () => {
         it('throws CompilerError for unsupported output format', () => {
             const prog = makeProgram({
-                output: { type: 'OUTPUT', value: 'out.wav', line: 2, column: 8, length: 8 },
+                outputs: [{ type: 'OUTPUT_BLOCK', file: 'out.wav', overrides: {}, line: 2, column: 8, length: 8 }],
             });
             let caught: unknown;
             try { analyze(prog); } catch (e) { caught = e; }

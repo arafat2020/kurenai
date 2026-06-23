@@ -157,14 +157,16 @@ kurenai run pipeline.crn
 input "video.mp4"
 ```
 
-Specifies the source media file.
-
----
-
-## Output
-
+### `output`
+Specifies the final output video file(s). You can define multiple outputs and provide output-specific overrides inside a block `{ ... }`. This allows you to generate multiple formats or resolutions in one script!
 ```kurenai
-output "result.mp4"
+output "final_video.mp4"
+output "youtube.mp4" { 
+    resize 1920x1080 
+}
+output "mobile.mp4" { 
+    resize 720x1280 
+}
 ```
 
 Specifies the output file.
@@ -344,55 +346,21 @@ const result = compile(`
 input "video.mp4"
 resize 1280x720
 encode h264 aac
-output "output.mp4"
-`);
+bitrate 2500k
+watermark "watermark.png" top-left
+thumbnail 2s
 
-console.log(result.commands);
+output "processed_footage.mp4"
+output "mobile_footage.mp4" {
+    resize 720x1280
+}
 ```
 
----
-
-## Individual Compiler Stages
-
-```ts
-import {
-  lex,
-  parse,
-  analyzeAst,
-  generateCommands
-} from "@arafat2020/kurenai";
-
-const tokens = lex(source);
-
-const ast = parse(tokens);
-
-analyzeAst(ast);
-
-const commands = generateCommands(ast);
-```
-
----
-
-## Class API
-
-```ts
-import { Kurenai } from "@arafat2020/kurenai";
-
-const k = new Kurenai();
-
-const result = k.compile(source);
-
-console.log(result.commands);
-```
-
----
-
-## Validate
-
-```ts
-const k = new Kurenai();
-
-k.validate(source);
+**Running `kurenai compile example.crn` generates:**
+```bash
+ffmpeg -i raw_footage.mkv -vf "scale=1280:720,fps=30" -c:v libx264 -c:a aac -b:v 2500k -i watermark.png -filter_complex "overlay=10:10" processed_footage.mp4
+ffmpeg -i raw_footage.mkv -vf "scale=720:1280,fps=30" -c:v libx264 -c:a aac -b:v 2500k -i watermark.png -filter_complex "overlay=10:10" mobile_footage.mp4
+ffmpeg -i raw_footage.mkv -ss 2 -frames:v 1 thumb.jpg
 ```
 
 Throws a CompilerError if validation fails.

@@ -1,0 +1,11 @@
+input "video.mp4"
+
+output "youtube.mp4" {
+  resize 1920x1080
+  bitrate 8000k
+}
+
+output "mobile.mp4" {
+  resize 720x1280
+  watermark "logo.png" bottom-right
+}

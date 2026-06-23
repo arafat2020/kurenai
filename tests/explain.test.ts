@@ -9,7 +9,7 @@ describe('Explain Tests', () => {
             type: 'PROGRAM',
             line: 1,
             input: { type: 'INPUT', value: 'in.mp4', line: 1 },
-            output: { type: 'OUTPUT', value: 'out.mp4', line: 1 },
+            outputs: [{ type: 'OUTPUT_BLOCK', file: 'out.mp4', overrides: {}, line: 1 }],
             encode: { type: 'ENCODE', videoCodec: VideoCodec.H264, audioCodec: AudioCodec.AAC, line: 1 },
             profiles: {}
         };
@@ -30,7 +30,7 @@ describe('Explain Tests', () => {
             type: 'PROGRAM',
             line: 1,
             input: { type: 'INPUT', value: 'in.mp4', line: 1 },
-            output: { type: 'OUTPUT', value: 'out.mp4', line: 1 },
+            outputs: [{ type: 'OUTPUT_BLOCK', file: 'out.mp4', overrides: {}, line: 1 }],
             profiles: {
                 'hd1080': {
                     type: 'PROFILE',

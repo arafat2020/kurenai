@@ -10,7 +10,7 @@ describe("analyzer", () => {
             column: 1,
             length: 0,
             input: { type: "INPUT", value: "video.mp4", line: 1, column: 7, length: 10 },
-            output: { type: "OUTPUT", value: "out.mp4", line: 2, column: 8, length: 8 },
+            outputs: [{ type: 'OUTPUT_BLOCK', file: "out.mp4", overrides: {}, line: 2, column: 8, length: 8 }],
             profiles: {},
             ...overrides
         } as Program;
@@ -40,19 +40,19 @@ describe("analyzer", () => {
     describe("analyzeOutput", () => {
         it("should not throw on valid output format", () => {
             const code = createBaseProgram({
-                output: { type: "OUTPUT", value: "out.mkv", line: 2, column: 8, length: 8 }
+                outputs: [{ type: 'OUTPUT_BLOCK', file: "out.mkv", overrides: {}, line: 2, column: 8, length: 8 }]
             });
             expect(() => analyze(code)).not.toThrow();
         });
 
         it("should throw if output is missing", () => {
-            const code = createBaseProgram({ output: undefined as any });
+            const code = createBaseProgram({ outputs: [] });
             expect(() => analyze(code)).toThrow("Output file is missing.");
         });
 
         it("should throw on invalid output format", () => {
             const code = createBaseProgram({
-                output: { type: "OUTPUT", value: "out.wav", line: 2, column: 8, length: 8 }
+                outputs: [{ type: 'OUTPUT_BLOCK', file: "out.wav", overrides: {}, line: 2, column: 8, length: 8 }]
             });
             expect(() => analyze(code)).toThrow("Unsupported output format: .wav");
         });
