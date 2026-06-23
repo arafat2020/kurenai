@@ -1,0 +1,2 @@
+input "video.mp4"
+output "out.mp4"

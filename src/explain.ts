@@ -25,7 +25,9 @@ function checkLine(label: string): string {
 export function explain(program: Program, commands: string[]): void {
     // ── Input / Output ──
     console.log(`Input:    ${program.input.value}`);
-    console.log(`Output:   ${program.output.value}`);
+    for (const out of program.outputs) {
+        console.log(`Output:   ${out.file}`);
+    }
 
     // ── Profiles ──
     if (program.profiles && Object.keys(program.profiles).length > 0) {
