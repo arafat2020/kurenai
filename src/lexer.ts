@@ -30,10 +30,14 @@ function lexer(input: string): Token[] {
 
     // Iterate through each line of the input
     for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
-        const line = lines[lineNumber] ?? '';
-        
+        const rawLine = (lines[lineNumber] ?? '').split('#')[0]!;
+        const line = rawLine; // don't trim — preserve column positions
+
+        if (rawLine.trim().length === 0) continue;
+
         // Skip empty/whitespace-only lines
         if (line.trim().length === 0) continue;
+        if (line.startsWith('#')) continue;
 
         tokenRegex.lastIndex = 0;
         let match: RegExpExecArray | null;
