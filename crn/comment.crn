@@ -1,0 +1,4 @@
+input "video.mp4"  # source file
+# this is a full line comment
+resize 1280x720    # HD resolution
+output "out.mp4"
