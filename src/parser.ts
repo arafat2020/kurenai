@@ -12,7 +12,10 @@ interface ASTNode {
     length: number;
 }
 
-// Codec Enums
+/**
+ * Represents a single input file in the AST.
+ * The input file is mandatory and must be specified at the top of the script.
+ */
 enum VideoCodec {
     H264 = 'h264',
     H265 = 'h265',
@@ -23,6 +26,10 @@ enum VideoCodec {
     THEORA = 'theora',
 }
 
+/**
+ * Represents a single output file in the AST.
+ * Each output can have its own configuration block, which overrides global settings.
+ */
 enum AudioCodec {
     AAC = 'aac',
     MP3 = 'mp3',
@@ -33,6 +40,10 @@ enum AudioCodec {
     AC3 = 'ac3',
 }
 
+/**
+ * Represents the position of a watermark on the video.
+ * The watermark can be placed in one of four corners of the video frame.
+ */
 enum WatermarkPosition {
     TOP_LEFT = 'top-left',
     TOP_RIGHT = 'top-right',
@@ -40,12 +51,27 @@ enum WatermarkPosition {
     BOTTOM_RIGHT = 'bottom-right',
 }
 
+/**
+ * Represents the unit of measurement for normalization.
+ */
+enum NormalizeUnit {
+    LUFS = 'lufs', 
+    dBTP = 'dbtp', 
+    dBRMS = 'dbrms'
+}
+
+/**
+ * Represents a single input file in the AST.
+ * The input file is mandatory and must be specified at the top of the script.
+ */
 interface InputNode extends ASTNode {
     type: 'INPUT';
     value: string;
 }
 
-
+/** Represents a single output block in the AST.
+ * Each output block can have its own configuration, which overrides global settings.
+ */
 interface OutputBlockNode extends ASTNode {
     type: 'OUTPUT_BLOCK';
     file: string;
@@ -57,48 +83,94 @@ interface OutputBlockNode extends ASTNode {
 //     value: string;
 // }
 
+/**
+ * Represents a resize command in the AST.
+ */
 interface ResizeNode extends ASTNode {
     type: 'RESIZE';
     width: number;
     height: number;
 }
 
+/** 
+ * Represents an FPS command in the AST.
+ */
 interface FpsNode extends ASTNode {
     type: 'FPS';
     value: number;
 }
 
+/** 
+ * Represents an encode command in the AST, specifying video and audio codecs.
+ */
 interface EncodeNode extends ASTNode {
     type: 'ENCODE';
     videoCodec: VideoCodec;
     audioCodec: AudioCodec;
 }
 
+/** 
+ * Represents a bitrate command in the AST.
+ */
 interface BitrateNode extends ASTNode {
     type: 'BITRATE';
     value: string;
 }
 
+/** 
+ * Represents an audio command in the AST.
+ */
 interface AudioNode extends ASTNode {
     type: 'AUDIO';
     value: string;
 }
 
+/** 
+ * Represents a watermark command in the AST.
+ */
 interface WatermarkNode extends ASTNode {
     type: 'WATERMARK';
     file: string;
     position: WatermarkPosition;
 }
 
+/**
+ * Represents a thumbnail command in the AST.
+ */
 interface ThumbnailNode extends ASTNode {
     type: 'THUMBNAIL';
     value: string;
 }
 
+/**
+ * Represents a profile command in the AST.
+ * Profiles allow users to define reusable configurations that can be applied to multiple outputs.
+ */
 interface ProfileNode extends ASTNode {
     type: 'PROFILE';
     name: string;
     body: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
+}
+
+/**
+ * Represents a normalize command in the AST.
+ * Normalization adjusts the audio levels of the output to a specified target.
+ */
+interface NormalizeNode extends ASTNode {
+    type: 'NORMALIZE';
+    value: number;
+    unit: NormalizeUnit;
+}
+
+/**
+ * Represents an equalizer command in the AST.
+ * The equalizer allows users to adjust the bass, mid, and treble frequencies of the audio.
+ */
+interface EQNode extends ASTNode {
+    type: 'EQ';
+    bass?: number;
+    mid?: number;
+    treble?: number;
 }
 
 /**
