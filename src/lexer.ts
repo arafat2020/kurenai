@@ -13,7 +13,9 @@ export type TokenType =
     'TIME' |
     'LBRACE' |
     'RBRACE' |
-    'DECIBEL';
+    'DECIBEL' |
+    'AUDIO_RATIO' |
+    'MILLISECOND';
 
 /**
  * Represents a single token extracted from the input script.
@@ -78,6 +80,10 @@ function lexer(input: string): Token[] {
                 tokenType = 'TIME';
             } else if (isDecibel(word)) {
                 tokenType = 'DECIBEL';
+            } else if (isAudioRatio(word)) {
+                tokenType = 'AUDIO_RATIO';
+            } else if (isMillisecond(word)) {
+                tokenType = 'MILLISECOND';
             } else {
                 throw new CompilerError(`Unknown token: ${word}`, lineNumber + 1, column, length);
             }
@@ -134,5 +140,12 @@ function isDecibel(word: string): boolean {
     return /^[+-]?\d+(\.\d+)?db$/.test(word);
 }
 
-export { lexer, isKeyword, isIdentifier, isNumber, isString, isResolution, isBitrate, isTime, isDecibel };
+function isAudioRatio(word: string): boolean {
+    return /^\d+:\d+$/.test(word);
+}
 
+function isMillisecond(word: string): boolean {
+    return /^\d+ms$/.test(word);
+}
+
+export { lexer, isKeyword, isIdentifier, isNumber, isString, isResolution, isBitrate, isTime, isDecibel, isAudioRatio, isMillisecond };
