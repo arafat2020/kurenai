@@ -52,6 +52,119 @@ describe('Parser Tests', () => {
     expect(ast.audio).toEqual({ type: 'AUDIO', value: 'soundtrack', line: 1, column: 7, length: 10 });
   });
 
+  it('should parse audio with string literal path', () => {
+    const tokens = lexer('audio "soundtrack.mp3"');
+    const ast = parseTokens(tokens);
+    expect(ast.audio).toEqual({ type: 'AUDIO', value: 'soundtrack.mp3', line: 1, column: 7, length: 16 });
+  });
+
+  it('should parse audio block with multiple properties', () => {
+    const src = `audio {
+      file "bg.mp3"
+      codec aac
+      bitrate 192k
+      samplerate 44100
+      channels stereo
+      reverb medium
+      fadein 1s
+      fadeout 500ms
+      normalize -14 lufs
+    }`;
+    const tokens = lexer(src);
+    const ast = parseTokens(tokens);
+    expect(ast.audio).toEqual({
+      type: 'AUDIO',
+      value: 'bg.mp3',
+      codec: 'aac',
+      bitrate: '192k',
+      samplerate: 44100,
+      channels: 'stereo',
+      reverb: 'medium',
+      fadein: '1s',
+      fadeout: '500ms',
+      normalize: {
+        type: 'NORMALIZE',
+        value: -14,
+        unit: 'lufs',
+        line: 10,
+        column: 7,
+        length: 18
+      },
+      line: 1,
+      column: 1,
+      length: 5
+    });
+  });
+
+  it('should parse audio block with eq settings', () => {
+    const src = `audio {
+      file "music.wav"
+      eq {
+        bass 5db
+        mid -2db
+        treble 1db
+      }
+    }`;
+    const tokens = lexer(src);
+    const ast = parseTokens(tokens);
+    expect(ast.audio?.eq).toEqual({
+      type: 'EQ',
+      bass: 5,
+      mid: -2,
+      treble: 1,
+      line: 3,
+      column: 7,
+      length: 1
+    });
+  });
+
+  it('should parse audio block with compression settings', () => {
+    const src = `audio {
+      file "voice.wav"
+      compress {
+        threshold -20db
+        ratio 4:1
+        attack 15ms
+        release 200ms
+      }
+    }`;
+    const tokens = lexer(src);
+    const ast = parseTokens(tokens);
+    expect(ast.audio?.compress).toEqual({
+      type: 'COMPRESSION',
+      threshold: -20,
+      ratio: 4,
+      attack: 15,
+      release: 200,
+      line: 3,
+      column: 7,
+      length: 1
+    });
+  });
+
+  it('should throw errors for invalid audio block properties and nested configurations', () => {
+    // Unsupported property
+    expect(() => parseTokens(lexer('audio { unknownProp 123 }'))).toThrow(/Unknown audio property "unknownProp"/);
+    // Missing value for property
+    expect(() => parseTokens(lexer('audio { file }'))).toThrow(/Value required for audio property "file"/);
+    // Invalid channels value
+    expect(() => parseTokens(lexer('audio { channels surround }'))).toThrow(/Audio channels must be 'stereo' or 'mono'/);
+    // Invalid reverb value
+    expect(() => parseTokens(lexer('audio { reverb heavy }'))).toThrow(/Unsupported reverb type/);
+    // Invalid normalize unit
+    expect(() => parseTokens(lexer('audio { normalize -12 db }'))).toThrow(/Unsupported normalize unit/);
+    // Unclosed eq block
+    expect(() => parseTokens(lexer('audio { eq { bass 3db'))).toThrow(/Expected } at the end of eq block/);
+    // Invalid eq property
+    expect(() => parseTokens(lexer('audio { eq { bass 3db unknown 2db } }'))).toThrow(/Unknown eq property "unknown"/);
+    // EQ value not in dB format
+    expect(() => parseTokens(lexer('audio { eq { bass 3 } }'))).toThrow(/EQ value must be in dB format/);
+    // Compress threshold not in dB format
+    expect(() => parseTokens(lexer('audio { compress { threshold -20 } }'))).toThrow(/Compression threshold must be in dB format/);
+    // Invalid compress ratio
+    expect(() => parseTokens(lexer('audio { compress { ratio invalid } }'))).toThrow(/Compression ratio must be/);
+  });
+
   it('should parse complete program with all features', () => {
     const src = `input "video.mp4"
 resize 1280x720

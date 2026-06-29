@@ -1,0 +1,25 @@
+input "video.mp4"
+
+audio {
+  codec aac
+  bitrate 192k
+  samplerate 48000
+  channels stereo
+  normalize -14 LUFS
+  eq {
+    bass +3db
+    mid -1db
+    treble +2db
+  }
+  compress {
+    threshold -18db
+    ratio 4:1
+    attack 5ms
+    release 100ms
+  }
+  reverb subtle
+  fadein 2s
+  fadeout 3s
+}
+
+output "out.mp4"

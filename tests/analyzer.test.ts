@@ -24,6 +24,13 @@ describe("analyzer", () => {
             expect(() => analyze(code)).not.toThrow();
         });
 
+        it("should not throw on valid audio input format", () => {
+            const code = createBaseProgram({
+                input: { type: "INPUT", value: "audio.mp3", line: 1, column: 7, length: 10 }
+            });
+            expect(() => analyze(code)).not.toThrow();
+        });
+
         it("should throw if input is missing", () => {
             const code = createBaseProgram({ input: undefined as any });
             expect(() => analyze(code)).toThrow("Input file is missing.");
@@ -31,9 +38,9 @@ describe("analyzer", () => {
 
         it("should throw on invalid input format", () => {
             const code = createBaseProgram({
-                input: { type: "INPUT", value: "video.mp3", line: 1, column: 7, length: 10 }
+                input: { type: "INPUT", value: "video.txt", line: 1, column: 7, length: 10 }
             });
-            expect(() => analyze(code)).toThrow("Unsupported input format: .mp3");
+            expect(() => analyze(code)).toThrow("Unsupported input format: .txt");
         });
     });
 
@@ -45,6 +52,13 @@ describe("analyzer", () => {
             expect(() => analyze(code)).not.toThrow();
         });
 
+        it("should not throw on valid audio output format", () => {
+            const code = createBaseProgram({
+                outputs: [{ type: 'OUTPUT_BLOCK', file: "out.wav", overrides: {}, line: 2, column: 8, length: 8 }]
+            });
+            expect(() => analyze(code)).not.toThrow();
+        });
+
         it("should throw if output is missing", () => {
             const code = createBaseProgram({ outputs: [] });
             expect(() => analyze(code)).toThrow("Output file is missing.");
@@ -52,9 +66,9 @@ describe("analyzer", () => {
 
         it("should throw on invalid output format", () => {
             const code = createBaseProgram({
-                outputs: [{ type: 'OUTPUT_BLOCK', file: "out.wav", overrides: {}, line: 2, column: 8, length: 8 }]
+                outputs: [{ type: 'OUTPUT_BLOCK', file: "out.zip", overrides: {}, line: 2, column: 8, length: 8 }]
             });
-            expect(() => analyze(code)).toThrow("Unsupported output format: .wav");
+            expect(() => analyze(code)).toThrow("Unsupported output format: .zip");
         });
     });
 
