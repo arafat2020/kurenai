@@ -18,6 +18,21 @@ export enum SupportedVideoFormat {
 }
 
 /**
+ * Defines the audio file extensions supported by Kurenai.
+ */
+export enum SupportedAudioFormat {
+    MP3 = '.mp3',
+    WAV = '.wav',
+    AAC = '.aac',
+    FLAC = '.flac',
+    OGG = '.ogg',
+    M4A = '.m4a',
+    OPUS = '.opus',
+    WMA = '.wma',
+    AIFF = '.aiff'
+}
+
+/**
  * Validates the input file node to ensure it exists and has a supported extension.
  * @param input The parsed InputNode
  * @param program The root Program AST
@@ -32,7 +47,9 @@ function analyzeInput(input: Program['input'], program: Program): void {
         ? input.value.slice(input.value.lastIndexOf('.')).toLowerCase() 
         : '';
         
-    const supportedFormats = Object.values(SupportedVideoFormat) as string[];
+    const supportedVideoFormats = Object.values(SupportedVideoFormat) as string[];
+    const supportedAudioFormats = Object.values(SupportedAudioFormat) as string[];
+    const supportedFormats = [...supportedVideoFormats, ...supportedAudioFormats];
     
     if (!supportedFormats.includes(inputExtension)) {
         throw new CompilerError(`Unsupported input format: ${inputExtension || 'No extension provided'}`, input.line, input.column, input.length);
@@ -54,7 +71,9 @@ function analyzeOutput(output: Program['outputs'][number], program: Program): vo
         ? output.file.slice(output.file.lastIndexOf('.')).toLowerCase() 
         : '';
         
-    const supportedFormats = Object.values(SupportedVideoFormat) as string[];
+    const supportedVideoFormats = Object.values(SupportedVideoFormat) as string[];
+    const supportedAudioFormats = Object.values(SupportedAudioFormat) as string[];
+    const supportedFormats = [...supportedVideoFormats, ...supportedAudioFormats];
     
     if (!supportedFormats.includes(outputExtension)) {
         throw new CompilerError(`Unsupported output format: ${outputExtension || 'No extension provided'}`, output.line, output.column, output.length);

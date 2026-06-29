@@ -278,4 +278,21 @@ describe('Audio Codegen Tests', () => {
             ' out.mp4'
         );
     });
+
+    // 10 ── Audio-only input codegen ──────────────────────────────────────────
+    it('should skip video filters when input file has an audio extension', () => {
+        const ast: Program = {
+            type: 'PROGRAM',
+            line: 1, column: 1, length: 0,
+            input: { type: 'INPUT', value: 'podcast.mp3', line: 1, column: 1, length: 0 },
+            outputs: [{ type: 'OUTPUT_BLOCK', file: 'podcast_mastered.mp3', overrides: {}, line: 1, column: 1, length: 0 }],
+            resize: { type: 'RESIZE', width: 1920, height: 1080, line: 1, column: 1, length: 0 },
+            fps: { type: 'FPS', value: 30, line: 1, column: 1, length: 0 },
+            profiles: {}
+        };
+        const cmds = generate(ast);
+        expect(cmds.length).toBe(1);
+        expect(cmds[0]).toBe('ffmpeg -i podcast.mp3 podcast_mastered.mp3');
+        expect(cmds[0]).not.toContain('-vf');
+    });
 });

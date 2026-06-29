@@ -35,16 +35,23 @@ const positionMap: Record<string, string> = {
 export function generate(program:Program): string[] {
     const commands: string[] = [];
 
+    const audioExtensions = ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.opus', '.wma', '.aiff'];
+
     for (const out of program.outputs) {
         let cmd = `ffmpeg -i ${program.input.value}`;
         const merged = { ...program, ...out.overrides };
         const vfFilters: string[] = [];
 
-        if (merged.resize) {
+        const inputExtension = program.input.value.includes('.') 
+            ? program.input.value.slice(program.input.value.lastIndexOf('.')).toLowerCase() 
+            : '';
+        const isAudioOnly = audioExtensions.includes(inputExtension);
+
+        if (!isAudioOnly && merged.resize) {
             vfFilters.push(`scale=${merged.resize.width}:${merged.resize.height}`);
         }
 
-        if (merged.fps) {
+        if (!isAudioOnly && merged.fps) {
             vfFilters.push(`fps=${merged.fps.value}`);
         }
 

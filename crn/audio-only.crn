@@ -1,0 +1,7 @@
+input "podcast.mp3"
+audio {
+  normalize -14 LUFS
+  codec aac
+  bitrate 192k
+}
+output "mastered.mp3"
