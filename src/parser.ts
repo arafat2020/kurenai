@@ -1,458 +1,92 @@
-import { type Token } from "./lexer.js";
-import { CompilerError } from "./errors.js";
+import { type Token } from './lexer.js';
+import { CompilerError } from './errors.js';
+import { VideoCodec, AudioCodec, WatermarkPosition } from './enums/parser.js';
+import { type Program } from './interfaces/parser.js';
+import { type ParseCommandFn } from './core/BaseParser.js';
+import { InputParser }    from './core/InputParser.js';
+import { OutputParser }   from './core/OutputParser.js';
+import { ResizeParser }   from './core/ResizeParser.js';
+import { FpsParser }      from './core/FpsParser.js';
+import { EncodeParser }   from './core/EncodeParser.js';
+import { BitrateParser }  from './core/BitrateParser.js';
+import { AudioParser }    from './core/AudioParser.js';
+import { WatermarkParser } from './core/WatermarkParser.js';
+import { ThumbnailParser } from './core/ThumbnailParser.js';
+import { ProfileParser }  from './core/ProfileParser.js';
+import { UseParser }      from './core/UseParser.js';
 
 /**
- * Base interface for all Abstract Syntax Tree (AST) nodes.
- * Every parsed element implements this so we can track its line number.
+ * Stateful parser that converts a flat token array into a typed Program AST.
+ *
+ * The class holds the mutable program being built and delegates each keyword
+ * to its own dedicated parser class under `src/core/`. Recursive dispatch
+ * (needed by OutputParser and ProfileParser for their inner blocks) is provided
+ * by binding `parseCommand` as a callback.
  */
-interface ASTNode {
-    type: string;
-    line: number;
-    column: number;
-    length: number;
+class Parser {
+    private readonly program: Partial<Program>;
+
+    constructor(private readonly tokens: Token[]) {
+        this.program = {
+            type: 'PROGRAM',
+            line: tokens[0]?.line ?? 1,
+            column: tokens[0]?.column ?? 1,
+            length: tokens[0]?.length ?? 0,
+            profiles: {},
+            outputs: [],
+        };
+    }
+
+    /**
+     * Dispatches a single keyword to the matching core parser.
+     * Bound and passed as a callback to parsers that need recursive dispatch.
+     */
+    private parseCommand(keyword: string, i: number, target: Partial<Program>): number {
+        const { tokens, program } = this;
+        // Bind once so OutputParser / ProfileParser receive a stable reference
+        const dispatch: ParseCommandFn = this.parseCommand.bind(this);
+        const token = tokens[i]!;
+
+        switch (keyword) {
+            case 'input':     return new InputParser(tokens, program).parse(i, target);
+            case 'output':    return new OutputParser(tokens, program, dispatch).parse(i, target);
+            case 'resize':    return new ResizeParser(tokens, program).parse(i, target);
+            case 'fps':       return new FpsParser(tokens, program).parse(i, target);
+            case 'encode':    return new EncodeParser(tokens, program).parse(i, target);
+            case 'bitrate':   return new BitrateParser(tokens, program).parse(i, target);
+            case 'audio':     return new AudioParser(tokens, program).parse(i, target);
+            case 'watermark': return new WatermarkParser(tokens, program).parse(i, target);
+            case 'thumbnail': return new ThumbnailParser(tokens, program).parse(i, target);
+            case 'profile':   return new ProfileParser(tokens, program, dispatch).parse(i, target);
+            case 'use':       return new UseParser(tokens, program).parse(i, target);
+            default:
+                throw new CompilerError(`Unknown keyword: ${keyword}`, token.line, token.column, token.length);
+        }
+    }
+
+    /** Main loop: walks top-level tokens and delegates each keyword. */
+    parse(): Program {
+        let i = 0;
+        while (i < this.tokens.length) {
+            const token = this.tokens[i];
+            if (!token) break;
+
+            if (token.type === 'KEYWORD') {
+                i = this.parseCommand(token.value, i, this.program);
+            } else {
+                throw new CompilerError(`Unexpected token "${token.value}"`, token.line, token.column, token.length);
+            }
+            i++;
+        }
+        return this.program as Program;
+    }
 }
-
-// Codec Enums
-enum VideoCodec {
-    H264 = 'h264',
-    H265 = 'h265',
-    VP8 = 'vp8',
-    VP9 = 'vp9',
-    AV1 = 'av1',
-    MPEG2VIDEO = 'mpeg2video',
-    THEORA = 'theora',
-}
-
-enum AudioCodec {
-    AAC = 'aac',
-    MP3 = 'mp3',
-    OPUS = 'opus',
-    VORBIS = 'vorbis',
-    FLAC = 'flac',
-    PCM = 'pcm_s16le',
-    AC3 = 'ac3',
-}
-
-enum WatermarkPosition {
-    TOP_LEFT = 'top-left',
-    TOP_RIGHT = 'top-right',
-    BOTTOM_LEFT = 'bottom-left',
-    BOTTOM_RIGHT = 'bottom-right',
-}
-
-interface InputNode extends ASTNode {
-    type: 'INPUT';
-    value: string;
-}
-
-
-interface OutputBlockNode extends ASTNode {
-    type: 'OUTPUT_BLOCK';
-    file: string;
-    overrides: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
-}
-
-// interface OutputNode extends ASTNode {
-//     type: 'OUTPUT';
-//     value: string;
-// }
-
-interface ResizeNode extends ASTNode {
-    type: 'RESIZE';
-    width: number;
-    height: number;
-}
-
-interface FpsNode extends ASTNode {
-    type: 'FPS';
-    value: number;
-}
-
-interface EncodeNode extends ASTNode {
-    type: 'ENCODE';
-    videoCodec: VideoCodec;
-    audioCodec: AudioCodec;
-}
-
-interface BitrateNode extends ASTNode {
-    type: 'BITRATE';
-    value: string;
-}
-
-interface AudioNode extends ASTNode {
-    type: 'AUDIO';
-    value: string;
-}
-
-interface WatermarkNode extends ASTNode {
-    type: 'WATERMARK';
-    file: string;
-    position: WatermarkPosition;
-}
-
-interface ThumbnailNode extends ASTNode {
-    type: 'THUMBNAIL';
-    value: string;
-}
-
-interface ProfileNode extends ASTNode {
-    type: 'PROFILE';
-    name: string;
-    body: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
-}
-
-/**
- * The root Program node represents the fully parsed script.
- * It contains mandatory inputs/outputs, optional configurations, 
- * and any reusable profiles defined in the script.
- */
-interface Program extends ASTNode {
-    input: InputNode;
-    outputs: OutputBlockNode[];
-    resize?: ResizeNode;
-    fps?: FpsNode;
-    encode?: EncodeNode;
-    bitrate?: BitrateNode;
-    audio?: AudioNode;
-    watermark?: WatermarkNode;
-    thumbnail?: ThumbnailNode;
-    profiles: Record<string, ProfileNode>;
-}
-
 
 /**
  * Core parsing function. Converts an array of Tokens into an AST Program.
  * @param tokens The array of Tokens generated by the lexer
  * @returns A fully constructed Program AST object
  */
-const parseTokens = (tokens: Token[]): Program => {
-    // Initialize an empty program object to store parsed commands
-    const program: Partial<Program> = {
-        type: 'PROGRAM',
-        line: tokens[0]?.line ?? 1,
-        column: tokens[0]?.column ?? 1,
-        length: tokens[0]?.length ?? 0,
-        profiles: {},
-        outputs: []
-    };
-
-    /**
-     * Helper function to parse individual commands.
-     * Extracts arguments for a keyword and stores them into the target object.
-     * 
-     * @param keyword The command keyword (e.g., 'resize', 'use')
-     * @param tokens The full token array
-     * @param i The current index in the token array
-     * @param target The object to write the parsed properties to (Program or ProfileBody)
-     * @returns The updated token index after consuming the command's arguments
-     */
-    function parseCommand(
-        keyword: string,
-        tokens: Token[],
-        i: number,
-        target: Partial<Program>
-    ): number {
-        const token = tokens[i]!;
-
-        switch (keyword) {
-            case 'input': {
-                const nextInputToken = tokens[i + 1];
-
-                if (nextInputToken === undefined || nextInputToken.type !== 'STRING') {
-                    const errToken = nextInputToken ?? token;
-                    throw new CompilerError("File source is required", errToken.line, errToken.column, errToken.length);
-                }
-                target.input = {
-                    type: 'INPUT',
-                    value: nextInputToken.value.replace(/"/g, ''),
-                    line: nextInputToken.line,
-                    column: nextInputToken.column,
-                    length: nextInputToken.length
-                };
-                return i + 1;
-            }
-            case 'output': {
-                const nextOutputToken = tokens[i + 1];
-
-                if (nextOutputToken === undefined) {
-                    throw new CompilerError("File source is required", token.line, token.column, token.length);
-                }
-                if (nextOutputToken.type !== 'STRING') {
-                    throw new CompilerError("Value must be a valid source", nextOutputToken.line, nextOutputToken.column, nextOutputToken.length);
-                }
-
-                const fileValue = nextOutputToken.value.replace(/"/g, '');
-                let overrides: Partial<Program> = {};
-                let j = i + 1;
-                let endToken = nextOutputToken;
-
-                const lbraceToken = tokens[j + 1];
-                if (lbraceToken && lbraceToken.type === 'LBRACE') {
-                    j += 2;
-                    while (j < tokens.length) {
-                        const innerToken = tokens[j];
-                        if (!innerToken) {
-                            throw new CompilerError("Unexpected end of file inside output block", lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                        }
-                        if (innerToken.type === 'RBRACE') {
-                            endToken = innerToken;
-                            break;
-                        }
-                        if (innerToken.type === 'KEYWORD') {
-                            j = parseCommand(innerToken.value, tokens, j, overrides);
-                        } else {
-                            throw new CompilerError(`Unexpected token "${innerToken.value}" at line ${innerToken.line}`, innerToken.line, innerToken.column, innerToken.length);
-                        }
-                        j++;
-                    }
-
-                    if (j >= tokens.length) {
-                        throw new CompilerError("Expected } at the end of output block", lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                    }
-                }
-
-                if (!target.outputs) {
-                    target.outputs = [];
-                }
-
-                target.outputs.push({
-                    type: 'OUTPUT_BLOCK',
-                    file: fileValue,
-                    overrides: overrides as any,
-                    line: token.line,
-                    column: token.column,
-                    length: (endToken.column + endToken.length) - token.column
-                });
-                return j;
-            }
-            case 'resize': {
-                const nextResizeToken = tokens[i + 1];
-                if (nextResizeToken === undefined) {
-                    throw new CompilerError("Resize value is required", token.line, token.column, token.length);
-                }
-                if (nextResizeToken.type !== 'RESOLUTION') {
-                    throw new CompilerError("Resolution Value must be a valid source. Eg 1280x720", nextResizeToken.line, nextResizeToken.column, nextResizeToken.length);
-                }
-                const splitResolutionValue = nextResizeToken.value.split("x");
-                if (splitResolutionValue.length !== 2) {
-                    throw new CompilerError("Resolution value must be in the format WIDTHxHEIGHT. Eg 1280x720", nextResizeToken.line, nextResizeToken.column, nextResizeToken.length);
-                }
-                target.resize = {
-                    type: "RESIZE",
-                    width: parseInt(splitResolutionValue[0]!),
-                    height: parseInt(splitResolutionValue[1]!),
-                    line: nextResizeToken.line,
-                    column: nextResizeToken.column,
-                    length: nextResizeToken.length
-                };
-                return i + 1;
-            }
-            case 'fps': {
-                const nextFpsToken = tokens[i + 1];
-                if (nextFpsToken === undefined) {
-                    throw new CompilerError("FPS value is required", token.line, token.column, token.length);
-                }
-                if (nextFpsToken.type !== 'NUMBER') {
-                    throw new CompilerError("FPS value must be a number", nextFpsToken.line, nextFpsToken.column, nextFpsToken.length);
-                }
-                target.fps = {
-                    type: "FPS",
-                    value: parseInt(nextFpsToken.value),
-                    line: nextFpsToken.line,
-                    column: nextFpsToken.column,
-                    length: nextFpsToken.length
-                };
-                return i + 1;
-            }
-            case 'encode': {
-                const nextEncodeToken = tokens[i + 1];
-                const nextNextEncodeToken = tokens[i + 2];
-
-                if (nextEncodeToken === undefined || nextNextEncodeToken === undefined) {
-                    throw new CompilerError("Both video and audio codecs are required for encoding", token.line, token.column, token.length);
-                }
-                if (nextEncodeToken.type !== 'IDENTIFIER' || nextNextEncodeToken.type !== 'IDENTIFIER') {
-                    const errToken = nextEncodeToken.type !== 'IDENTIFIER' ? nextEncodeToken : nextNextEncodeToken;
-                    throw new CompilerError("Codec values must be valid keywords", errToken.line, errToken.column, errToken.length);
-                }
-
-                const videoCodec = nextEncodeToken.value as VideoCodec;
-                const audioCodec = nextNextEncodeToken.value as AudioCodec;
-                target.encode = {
-                    type: "ENCODE",
-                    videoCodec,
-                    audioCodec,
-                    line: token.line,
-                    column: token.column,
-                    length: (nextNextEncodeToken.column + nextNextEncodeToken.length) - token.column
-                };
-                return i + 2;
-            }
-            case 'bitrate': {
-                const nextBitrateToken = tokens[i + 1];
-                if (nextBitrateToken === undefined) {
-                    throw new CompilerError("Bitrate value is required", token.line, token.column, token.length);
-                }
-                if (nextBitrateToken.type !== 'BITRATE') {
-                    throw new CompilerError("Bitrate value must be a string with units, e.g. '500k' or '2M'", nextBitrateToken.line, nextBitrateToken.column, nextBitrateToken.length);
-                }
-                target.bitrate = {
-                    type: "BITRATE",
-                    value: nextBitrateToken.value,
-                    line: nextBitrateToken.line,
-                    column: nextBitrateToken.column,
-                    length: nextBitrateToken.length
-                };
-                return i + 1;
-            }
-            case 'audio': {
-                const nextAudioToken = tokens[i + 1];
-                if (nextAudioToken === undefined) {
-                    throw new CompilerError("Audio value is required", token.line, token.column, token.length);
-                }
-                if (nextAudioToken.type !== 'IDENTIFIER') {
-                    throw new CompilerError("Audio value must be a string with the audio file path, e.g. 'audio.mp3'", nextAudioToken.line, nextAudioToken.column, nextAudioToken.length);
-                }
-                target.audio = {
-                    type: "AUDIO",
-                    value: nextAudioToken.value.replace(/"/g, ''),
-                    line: nextAudioToken.line,
-                    column: nextAudioToken.column,
-                    length: nextAudioToken.length
-                };
-                return i + 1;
-            }
-            case 'watermark': {
-                const nextWatermarkToken = tokens[i + 1];
-                const nextNextWatermarkToken = tokens[i + 2];
-
-                if (nextWatermarkToken === undefined || nextNextWatermarkToken === undefined) {
-                    throw new CompilerError("Both watermark file and position are required for watermarking", token.line, token.column, token.length);
-                }
-                if (nextWatermarkToken.type !== 'STRING' || nextNextWatermarkToken.type !== 'IDENTIFIER') {
-                    const errToken = nextWatermarkToken.type !== 'STRING' ? nextWatermarkToken : nextNextWatermarkToken;
-                    throw new CompilerError("Watermark file must be a string and position must be a valid keyword", errToken.line, errToken.column, errToken.length);
-                }
-
-                const watermarkFile = nextWatermarkToken.value.replace(/"/g, '');
-                const watermarkPosition = nextNextWatermarkToken.value as WatermarkPosition;
-                target.watermark = {
-                    type: "WATERMARK",
-                    file: watermarkFile,
-                    position: watermarkPosition,
-                    line: token.line,
-                    column: token.column,
-                    length: (nextNextWatermarkToken.column + nextNextWatermarkToken.length) - token.column
-                };
-                return i + 2;
-            }
-            case 'thumbnail': {
-                const nextThumbnailToken = tokens[i + 1];
-                if (nextThumbnailToken === undefined) {
-                    throw new CompilerError("Thumbnail value is required", token.line, token.column, token.length);
-                }
-                if (nextThumbnailToken.type !== 'TIME') {
-                    throw new CompilerError("Thumbnail value must be a time value, e.g. '5s'", nextThumbnailToken.line, nextThumbnailToken.column, nextThumbnailToken.length);
-                }
-                target.thumbnail = {
-                    type: "THUMBNAIL",
-                    value: nextThumbnailToken.value,
-                    line: nextThumbnailToken.line,
-                    column: nextThumbnailToken.column,
-                    length: nextThumbnailToken.length
-                };
-                return i + 1;
-            }
-            case 'profile': {
-                // Profiles allow reusing configuration blocks.
-                // Syntax: profile NAME { ...commands }
-                const nameToken = tokens[i + 1];
-                if (!nameToken || nameToken.type !== 'IDENTIFIER') {
-                    throw new CompilerError("Profile name is required", token.line, token.column, token.length);
-                }
-                const lbraceToken = tokens[i + 2];
-                if (!lbraceToken || lbraceToken.type !== 'LBRACE') {
-                    throw new CompilerError("Expected { after profile name", nameToken.line, nameToken.column, nameToken.length);
-                }
-                
-                const profileBody: Partial<Program> = {};
-                let j = i + 3;
-                while (j < tokens.length) {
-                    const innerToken = tokens[j];
-                    if (!innerToken) {
-                        throw new CompilerError("Unexpected end of file inside profile", lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                    }
-                    if (innerToken.type === 'RBRACE') {
-                        break;
-                    }
-                    if (innerToken.type === 'KEYWORD') {
-                        j = parseCommand(innerToken.value, tokens, j, profileBody);
-                    } else {
-                        throw new CompilerError(`Unexpected token "${innerToken.value}" at line ${innerToken.line}`, innerToken.line, innerToken.column, innerToken.length);
-                    }
-                    j++;
-                }
-
-                if (j >= tokens.length) {
-                    throw new CompilerError("Expected } at the end of profile", lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                }
-
-                const rbraceToken = tokens[j]!;
-                
-                if (!program.profiles) program.profiles = {};
-                program.profiles[nameToken.value] = {
-                    type: 'PROFILE',
-                    name: nameToken.value,
-                    body: profileBody as any,
-                    line: token.line,
-                    column: token.column,
-                    length: (rbraceToken.column + rbraceToken.length) - token.column
-                };
-                return j;
-            }
-            case 'use': {
-                // The use command applies a previously defined profile.
-                // Inline commands take precedence over profile values.
-                const useNameToken = tokens[i + 1];
-                if (!useNameToken || useNameToken.type !== 'IDENTIFIER') {
-                    throw new CompilerError("Profile name is required for use", token.line, token.column, token.length);
-                }
-                const profileName = useNameToken.value;
-                const profile = program.profiles?.[profileName];
-                if (!profile) {
-                    throw new CompilerError(`Profile "${profileName}" not found at line ${token.line}`, useNameToken.line, useNameToken.column, useNameToken.length);
-                }
-                for (const [key, value] of Object.entries(profile.body)) {
-                    if (!(key in target)) {
-                        (target as any)[key] = value;
-                    }
-                }
-                return i + 1;
-            }
-            default:
-                throw new CompilerError(`Unknown keyword: ${keyword}`, token.line, token.column, token.length);
-        }
-    }
-
-    // Main parsing loop: process the top-level tokens
-    let i = 0;
-    while (i < tokens.length) {
-        const token = tokens[i];
-
-        if (!token) {
-            break;
-        }
-
-        if (token.type === 'KEYWORD') {
-            i = parseCommand(token.value, tokens, i, program);
-        } else {
-            throw new CompilerError(`Unexpected token "${token.value}"`, token.line, token.column, token.length);
-        }
-
-        i++;
-    }
-
-    return program as Program;
-}
+const parseTokens = (tokens: Token[]): Program => new Parser(tokens).parse();
 
 export { parseTokens, type Program, VideoCodec, AudioCodec, WatermarkPosition };

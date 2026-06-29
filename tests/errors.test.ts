@@ -294,7 +294,7 @@ describe('Error Handling — Analyzer', () => {
     describe('input validation', () => {
         it('throws CompilerError for unsupported input format', () => {
             const prog = makeProgram({
-                input: { type: 'INPUT', value: 'song.mp3', line: 1, column: 7, length: 9 },
+                input: { type: 'INPUT', value: 'song.txt', line: 1, column: 7, length: 8 },
             });
             let caught: unknown;
             try { analyze(prog); } catch (e) { caught = e; }
@@ -304,21 +304,21 @@ describe('Error Handling — Analyzer', () => {
 
         it('points to the input token position', () => {
             const prog = makeProgram({
-                input: { type: 'INPUT', value: 'song.mp3', line: 1, column: 7, length: 9 },
+                input: { type: 'INPUT', value: 'song.txt', line: 1, column: 7, length: 8 },
             });
             let caught: unknown;
             try { analyze(prog); } catch (e) { caught = e; }
             const err = caught as CompilerError;
             expect(err.line).toBe(1);
             expect(err.column).toBe(7);
-            expect(err.length).toBe(9);
+            expect(err.length).toBe(8);
         });
     });
 
     describe('output validation', () => {
         it('throws CompilerError for unsupported output format', () => {
             const prog = makeProgram({
-                outputs: [{ type: 'OUTPUT_BLOCK', file: 'out.wav', overrides: {}, line: 2, column: 8, length: 8 }],
+                outputs: [{ type: 'OUTPUT_BLOCK', file: 'out.zip', overrides: {}, line: 2, column: 8, length: 7 }],
             });
             let caught: unknown;
             try { analyze(prog); } catch (e) { caught = e; }

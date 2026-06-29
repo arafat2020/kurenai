@@ -3,7 +3,19 @@ import { CompilerError } from "./errors.js";
 /**
  * Defines the types of tokens that the lexer can recognize.
  */
-export type TokenType = 'KEYWORD' | 'IDENTIFIER' | 'NUMBER' | 'STRING' | 'RESOLUTION' | 'BITRATE' | 'TIME' | 'LBRACE' | 'RBRACE';
+export type TokenType =
+    'KEYWORD' |
+    'IDENTIFIER' |
+    'NUMBER' |
+    'STRING' |
+    'RESOLUTION' |
+    'BITRATE' |
+    'TIME' |
+    'LBRACE' |
+    'RBRACE' |
+    'DECIBEL' |
+    'AUDIO_RATIO' |
+    'MILLISECOND';
 
 /**
  * Represents a single token extracted from the input script.
@@ -66,6 +78,12 @@ function lexer(input: string): Token[] {
                 tokenType = 'BITRATE';
             } else if (isTime(word)) {
                 tokenType = 'TIME';
+            } else if (isDecibel(word)) {
+                tokenType = 'DECIBEL';
+            } else if (isAudioRatio(word)) {
+                tokenType = 'AUDIO_RATIO';
+            } else if (isMillisecond(word)) {
+                tokenType = 'MILLISECOND';
             } else {
                 throw new CompilerError(`Unknown token: ${word}`, lineNumber + 1, column, length);
             }
@@ -94,7 +112,7 @@ function isIdentifier(word: string): boolean {
 
 /** Checks if a word is a raw number */
 function isNumber(word: string): boolean {
-    return /^\d+$/.test(word);
+    return /^-?\d+$/.test(word);
 }
 
 /** Checks if a word is a quoted string */
@@ -117,5 +135,17 @@ function isTime(word: string): boolean {
     return /^\d+s$/.test(word.toLowerCase());
 }
 
-export { lexer, isKeyword, isIdentifier, isNumber, isString, isResolution, isBitrate, isTime };
+/** Checks if a word is a decibel format (e.g., -3.5db) */
+function isDecibel(word: string): boolean {
+    return /^[+-]?\d+(\.\d+)?db$/.test(word);
+}
 
+function isAudioRatio(word: string): boolean {
+    return /^\d+:\d+$/.test(word);
+}
+
+function isMillisecond(word: string): boolean {
+    return /^\d+ms$/.test(word);
+}
+
+export { lexer, isKeyword, isIdentifier, isNumber, isString, isResolution, isBitrate, isTime, isDecibel, isAudioRatio, isMillisecond };
