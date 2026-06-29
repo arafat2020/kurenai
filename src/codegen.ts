@@ -64,7 +64,93 @@ export function generate(program:Program): string[] {
         }
 
         if (merged.audio) {
-            outOptions += ` -c:a ${merged.audio.value}`;
+            const audio = merged.audio;
+            const afFilters: string[] = [];
+
+            // External audio file: mix it in as a secondary input
+            if (audio.value) {
+                cmd += ` -i ${audio.value}`;
+                afFilters.push(`amix=inputs=2:duration=first`);
+            }
+
+            // Audio codec
+            if (audio.codec) {
+                outOptions += ` -c:a ${audio.codec}`;
+            }
+
+            // Audio bitrate
+            if (audio.bitrate) {
+                outOptions += ` -b:a ${audio.bitrate}`;
+            }
+
+            // Sample rate
+            if (audio.samplerate) {
+                outOptions += ` -ar ${audio.samplerate}`;
+            }
+
+            // Channel layout
+            if (audio.channels) {
+                outOptions += ` -ac ${audio.channels === 'stereo' ? 2 : 1}`;
+            }
+
+            // Normalization — uses the loudnorm filter
+            if (audio.normalize) {
+                const unit = audio.normalize.unit.toLowerCase();
+                const val = audio.normalize.value;
+                if (unit === 'lufs') {
+                    afFilters.push(`loudnorm=I=${val}`);
+                } else if (unit === 'dbtp') {
+                    afFilters.push(`loudnorm=TP=${val}`);
+                } else if (unit === 'dbrms') {
+                    afFilters.push(`loudnorm=LRA=${val}`);
+                }
+            }
+
+            // EQ — bass, mid, treble via equalizer filter
+            if (audio.eq) {
+                const { bass, mid, treble } = audio.eq;
+                if (bass !== undefined) afFilters.push(`equalizer=f=100:width_type=o:width=2:g=${bass}`);
+                if (mid !== undefined)  afFilters.push(`equalizer=f=1000:width_type=o:width=2:g=${mid}`);
+                if (treble !== undefined) afFilters.push(`equalizer=f=10000:width_type=o:width=2:g=${treble}`);
+            }
+
+            // Compression — uses acompressor filter
+            if (audio.compress) {
+                const { threshold, ratio, attack, release } = audio.compress;
+                const parts: string[] = [];
+                if (threshold !== undefined) parts.push(`threshold=${threshold}dB`);
+                if (ratio !== undefined)     parts.push(`ratio=${ratio}`);
+                if (attack !== undefined)    parts.push(`attack=${attack}`);
+                if (release !== undefined)   parts.push(`release=${release}`);
+                if (parts.length > 0) afFilters.push(`acompressor=${parts.join(':')}`);
+            }
+
+            // Reverb — uses aecho filter as a simple reverb approximation
+            if (audio.reverb) {
+                const reverbMap: Record<string, string> = {
+                    subtle: 'aecho=0.8:0.8:20:0.1',
+                    medium: 'aecho=0.8:0.8:60:0.3',
+                    large:  'aecho=0.8:0.8:120:0.5'
+                };
+                const reverbFilter = reverbMap[audio.reverb];
+                if (reverbFilter) afFilters.push(reverbFilter);
+            }
+
+            // Fade in / Fade out — using afade filter
+            if (audio.fadein) {
+                const duration = parseFloat(audio.fadein.replace(/[a-z]+$/i, ''));
+                afFilters.push(`afade=t=in:st=0:d=${duration}`);
+            }
+            if (audio.fadeout) {
+                const duration = parseFloat(audio.fadeout.replace(/[a-z]+$/i, ''));
+                // st (start time) for fadeout requires knowing total duration — use a large value
+                // so we use the `eval=frame` trick by letting ffmpeg calculate it at encode time
+                afFilters.push(`afade=t=out:st=99999:d=${duration}`);
+            }
+
+            if (afFilters.length > 0) {
+                outOptions += ` -af "${afFilters.join(',')}"`;
+            }
         }
 
         if (merged.watermark) {

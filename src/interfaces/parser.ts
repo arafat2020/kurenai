@@ -4,7 +4,7 @@ import { VideoCodec, AudioCodec, WatermarkPosition, NormalizeUnit, Reverb, Audio
  * Base interface for all Abstract Syntax Tree (AST) nodes.
  * Every parsed element implements this so we can track its line number.
  */
-interface ASTNode {
+export interface ASTNode {
     type: string;
     line: number;
     column: number;
@@ -72,7 +72,7 @@ interface BitrateNode extends ASTNode {
 /** 
  * Represents an audio command in the AST.
  */
-interface AudioNode extends ASTNode {
+export interface AudioNode extends ASTNode {
     type: 'AUDIO';
     value?: string;
     codec?: string;
@@ -118,7 +118,7 @@ interface ProfileNode extends ASTNode {
  * Represents a normalize command in the AST.
  * Normalization adjusts the audio levels of the output to a specified target.
  */
-interface NormalizeNode extends ASTNode {
+export interface NormalizeNode extends ASTNode {
     type: 'NORMALIZE';
     value: number;
     unit: NormalizeUnit;
@@ -128,7 +128,7 @@ interface NormalizeNode extends ASTNode {
  * Represents an equalizer command in the AST.
  * The equalizer allows users to adjust the bass, mid, and treble frequencies of the audio.
  */
-interface EQNode extends ASTNode {
+export interface EQNode extends ASTNode {
     type: 'EQ';
     bass?: number;
     mid?: number;
@@ -139,7 +139,7 @@ interface EQNode extends ASTNode {
  * Represents a compression command in the AST.
  * Compression reduces the dynamic range of the audio, making quiet sounds louder and loud sounds quieter.
  */
-interface CompressionNode extends ASTNode {
+export interface CompressionNode extends ASTNode {
     type: 'COMPRESSION';
     threshold?: number;
     ratio?: number;
