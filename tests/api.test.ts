@@ -74,6 +74,11 @@ describe("Public API", () => {
                 `)
             ).toThrow(CompilerError);
         });
+
+        it("compile() should support start and end options", () => {
+            const result = compile(validSource, { start: 0, end: 20 });
+            expect(result.commands[0]).toContain("-ss 0 -to 20 -i video.mp4");
+        });
     });
 
     describe("Verbose Mode", () => {
@@ -137,6 +142,11 @@ describe("Public API", () => {
 
             expect(result.ast).toBeDefined();
             expect(result.commands.length).toBeGreaterThan(0);
+        });
+
+        it("compile() should support start and end options", () => {
+            const result = kurenai.compile(validSource, { start: 0, end: 20 });
+            expect(result.commands[0]).toContain("-ss 0 -to 20 -i video.mp4");
         });
 
         it("validate() should succeed for valid DSL", () => {
