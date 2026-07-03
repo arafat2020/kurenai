@@ -11,6 +11,7 @@ Instead of memorizing complex FFmpeg flags and filter graphs, you can describe y
 * Human-readable video processing DSL
 * Generates valid FFmpeg commands
 * CLI and TypeScript API
+* Time-range (chunked) rendering support
 * Built-in semantic validation
 * Profile system for reusable configurations
 * Watermark support
