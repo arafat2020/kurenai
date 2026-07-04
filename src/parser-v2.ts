@@ -1,7 +1,16 @@
 import { type Token } from './lexer.js';
 import { CompilerError } from './errors.js';
-import { type ProgramV2, type MixNode } from './interfaces/v2.js';
+import { type Program } from './interfaces/parser.js';
+import { type ProgramV2 } from './interfaces/v2.js';
 import { type ParseCommandFn } from './core/BaseParser.js';
+
+// ── V2-specific keyword parsers ──────────────────────────────────────────────
+import { SourceParser }   from './core/SourceParser.js';
+import { ClipParser }     from './core/ClipParser.js';
+import { MixParser }      from './core/MixParser.js';
+import { TimelineParser } from './core/TimelineParser.js';
+
+// ── Shared V1 keyword parsers (unchanged) ─────────────────────────────────────
 import { OutputParser }   from './core/OutputParser.js';
 import { EncodeParser }   from './core/EncodeParser.js';
 import { BitrateParser }  from './core/BitrateParser.js';
@@ -14,209 +23,97 @@ import { ResizeParser }   from './core/ResizeParser.js';
 import { FpsParser }      from './core/FpsParser.js';
 
 /**
- * Stateful parser that converts a flat token array into a ProgramV2 AST.
+ * Stateful V2 parser that converts a flat token array produced by the lexer
+ * into a {@link ProgramV2} AST.
+ *
+ * Architecture mirrors the V1 {@link Parser} class in `parser.ts`:
+ * - The mutable program being built is held as `this.program`.
+ * - `parseCommand` dispatches each keyword token to its dedicated `*Parser`
+ *   class in `src/core/`.
+ * - V2-only keywords (`source`, `clip`, `mix`, `timeline`) go to the four
+ *   new V2 parsers.
+ * - All existing V1 keyword parsers (`encode`, `bitrate`, `audio`, etc.) are
+ *   reused without modification, maintaining full backward compatibility.
+ * - Recursive dispatch (required by {@link OutputParser} and
+ *   {@link ProfileParser} for their inner blocks) is provided by binding
+ *   `parseCommand` as a stable callback.
  */
 class ParserV2 {
     private readonly program: Partial<ProgramV2>;
 
     constructor(private readonly tokens: Token[]) {
         this.program = {
-            type: 'PROGRAM',
-            line: tokens[0]?.line ?? 1,
-            column: tokens[0]?.column ?? 1,
-            length: tokens[0]?.length ?? 0,
-            version: 2,
-            sources: {},
-            clips: {},
-            mixes: {},
+            type:     'PROGRAM',
+            line:     tokens[0]?.line   ?? 1,
+            column:   tokens[0]?.column ?? 1,
+            length:   tokens[0]?.length ?? 0,
+            version:  2,
+            sources:  {},
+            clips:    {},
+            mixes:    {},
             timeline: null,
             profiles: {},
-            outputs: [],
+            outputs:  [],
         };
     }
 
     /**
-     * Dispatches a single keyword to the matching V2 parser or existing V1 parser.
+     * Dispatches a single keyword token to the matching core parser class.
+     *
+     * V2-only keywords are handled by the new parsers in `src/core/`.
+     * All V1 keywords are delegated to their existing parser classes —
+     * the `program` object is cast so that `BaseParser`'s typed API is
+     * satisfied while still targeting the V2 program being built.
+     *
+     * @param keyword The keyword string value of the current token.
+     * @param i       Index of the keyword token in `this.tokens`.
+     * @param target  The object to write parsed nodes into (top-level program
+     *                or an inner override / profile body).
+     * @returns       The index of the last token consumed so the caller can
+     *                advance past it with `i++`.
      */
-    private parseCommand(keyword: string, i: number, target: any): number {
+    private parseCommand(keyword: string, i: number, target: Partial<Program>): number {
         const { tokens, program } = this;
+        // Bind once so OutputParser / ProfileParser receive a stable reference
         const dispatch: ParseCommandFn = this.parseCommand.bind(this);
         const token = tokens[i]!;
 
+        // Alias for passing the V2 program to parsers typed against V1 Program
+        const v1Program = program as any;
+
         switch (keyword) {
-            case 'source': {
-                const nameToken = tokens[i + 1];
-                const fileToken = tokens[i + 2];
-                if (!nameToken || nameToken.type !== 'IDENTIFIER') {
-                    throw new CompilerError('Source name required', token.line, token.column, token.length);
-                }
-                if (!fileToken || fileToken.type !== 'STRING') {
-                    throw new CompilerError('Source file path required', token.line, token.column, token.length);
-                }
-                if (!program.sources) program.sources = {};
-                program.sources[nameToken.value] = {
-                    type: 'SOURCE',
-                    name: nameToken.value,
-                    file: fileToken.value.replace(/"/g, ''),
-                    line: token.line,
-                    column: token.column,
-                    length: (fileToken.column + fileToken.length) - token.column,
-                };
-                return i + 2;
-            }
-            case 'clip': {
-                const nameToken = tokens[i + 1];
-                const fromToken = tokens[i + 2];
-                const sourceToken = tokens[i + 3];
-                const startToken = tokens[i + 4];
-                const toToken = tokens[i + 5];
-                const endToken = tokens[i + 6];
+            // ── V2-only keywords ────────────────────────────────────────────
+            case 'source':   return new SourceParser(tokens,   v1Program).parse(i, target as any);
+            case 'clip':     return new ClipParser(tokens,     v1Program).parse(i, target as any);
+            case 'mix':      return new MixParser(tokens,      v1Program).parse(i, target as any);
+            case 'timeline': return new TimelineParser(tokens, v1Program).parse(i, target as any);
 
-                if (!nameToken || nameToken.type !== 'IDENTIFIER') {
-                    throw new CompilerError('Clip name required', token.line, token.column, token.length);
-                }
-                if (!fromToken || fromToken.type !== 'KEYWORD' || fromToken.value !== 'from') {
-                    throw new CompilerError("Expected 'from' keyword", token.line, token.column, token.length);
-                }
-                if (!sourceToken || sourceToken.type !== 'IDENTIFIER') {
-                    throw new CompilerError('Source name required', token.line, token.column, token.length);
-                }
-                if (!startToken || startToken.type !== 'TIME') {
-                    throw new CompilerError('Start time required', token.line, token.column, token.length);
-                }
-                if (!toToken || toToken.type !== 'KEYWORD' || toToken.value !== 'to') {
-                    throw new CompilerError("Expected 'to' keyword", token.line, token.column, token.length);
-                }
-                if (!endToken || endToken.type !== 'TIME') {
-                    throw new CompilerError('End time required', token.line, token.column, token.length);
-                }
+            // ── V1 shared keywords ──────────────────────────────────────────
+            case 'encode':    return new EncodeParser(tokens,    v1Program).parse(i, target as any);
+            case 'bitrate':   return new BitrateParser(tokens,   v1Program).parse(i, target as any);
+            case 'audio':     return new AudioParser(tokens,     v1Program).parse(i, target as any);
+            case 'watermark': return new WatermarkParser(tokens, v1Program).parse(i, target as any);
+            case 'thumbnail': return new ThumbnailParser(tokens, v1Program).parse(i, target as any);
+            case 'output':    return new OutputParser(tokens,    v1Program, dispatch).parse(i, target as any);
+            case 'profile':   return new ProfileParser(tokens,   v1Program, dispatch).parse(i, target as any);
+            case 'use':       return new UseParser(tokens,       v1Program).parse(i, target as any);
+            case 'resize':    return new ResizeParser(tokens,    v1Program).parse(i, target as any);
+            case 'fps':       return new FpsParser(tokens,       v1Program).parse(i, target as any);
 
-                if (!program.clips) program.clips = {};
-                program.clips[nameToken.value] = {
-                    type: 'CLIP',
-                    name: nameToken.value,
-                    sourceName: sourceToken.value,
-                    start: startToken.value,
-                    end: endToken.value,
-                    line: token.line,
-                    column: token.column,
-                    length: (endToken.column + endToken.length) - token.column,
-                };
-                return i + 6;
-            }
-            case 'mix': {
-                const nameToken = tokens[i + 1];
-                const lbraceToken = tokens[i + 2];
-                if (!nameToken || nameToken.type !== 'IDENTIFIER') {
-                    throw new CompilerError('Mix name required', token.line, token.column, token.length);
-                }
-                if (!lbraceToken || lbraceToken.type !== 'LBRACE') {
-                    throw new CompilerError("Expected '{' at the start of mix block", token.line, token.column, token.length);
-                }
-                const mixNode: MixNode = {
-                    type: 'MIX',
-                    name: nameToken.value,
-                    tracks: [],
-                    line: token.line,
-                    column: token.column,
-                    length: 0,
-                };
-                let j = i + 3;
-                let endToken = lbraceToken;
-                while (j < tokens.length) {
-                    const inner = tokens[j];
-                    if (!inner) {
-                        throw new CompilerError('Unexpected end of file inside mix block', lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                    }
-                    if (inner.type === 'RBRACE') {
-                        endToken = inner;
-                        break;
-                    }
-                    if (inner.type !== 'KEYWORD' || inner.value !== 'track') {
-                        throw new CompilerError("Expected 'track' keyword", inner.line, inner.column, inner.length);
-                    }
-                    const sourceToken = tokens[j + 1];
-                    const volKeyToken = tokens[j + 2];
-                    const volValToken = tokens[j + 3];
-
-                    if (!sourceToken || sourceToken.type !== 'IDENTIFIER') {
-                        throw new CompilerError('Track source name required', inner.line, inner.column, inner.length);
-                    }
-                    if (!volKeyToken || volKeyToken.type !== 'KEYWORD' || volKeyToken.value !== 'volume') {
-                        throw new CompilerError("Expected 'volume' keyword", inner.line, inner.column, inner.length);
-                    }
-                    if (!volValToken || volValToken.type !== 'FLOAT') {
-                        throw new CompilerError('Expected float volume value', inner.line, inner.column, inner.length);
-                    }
-
-                    mixNode.tracks.push({
-                        type: 'TRACK',
-                        sourceName: sourceToken.value,
-                        volume: parseFloat(volValToken.value),
-                        line: inner.line,
-                        column: inner.column,
-                        length: (volValToken.column + volValToken.length) - inner.column,
-                    });
-                    j += 4;
-                }
-                if (j >= tokens.length) {
-                    throw new CompilerError("Expected '}' at the end of mix block", lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                }
-                mixNode.length = (endToken.column + endToken.length) - token.column;
-                if (!program.mixes) program.mixes = {};
-                program.mixes[nameToken.value] = mixNode;
-                return j;
-            }
-            case 'timeline': {
-                const lbraceToken = tokens[i + 1];
-                if (!lbraceToken || lbraceToken.type !== 'LBRACE') {
-                    throw new CompilerError("Expected '{' at the start of timeline block", token.line, token.column, token.length);
-                }
-                const clips: string[] = [];
-                let j = i + 2;
-                let endToken = lbraceToken;
-                while (j < tokens.length) {
-                    const inner = tokens[j];
-                    if (!inner) {
-                        throw new CompilerError('Unexpected end of file inside timeline block', lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                    }
-                    if (inner.type === 'RBRACE') {
-                        endToken = inner;
-                        break;
-                    }
-                    if (inner.type !== 'IDENTIFIER') {
-                        throw new CompilerError(`Expected clip name, got "${inner.value}"`, inner.line, inner.column, inner.length);
-                    }
-                    clips.push(inner.value);
-                    j++;
-                }
-                if (j >= tokens.length) {
-                    throw new CompilerError("Expected '}' at the end of timeline block", lbraceToken.line, lbraceToken.column, lbraceToken.length);
-                }
-                program.timeline = {
-                    type: 'TIMELINE',
-                    clips,
-                    line: token.line,
-                    column: token.column,
-                    length: (endToken.column + endToken.length) - token.column,
-                };
-                return j;
-            }
-            case 'encode':    return new EncodeParser(tokens, program as any).parse(i, target);
-            case 'bitrate':   return new BitrateParser(tokens, program as any).parse(i, target);
-            case 'audio':     return new AudioParser(tokens, program as any).parse(i, target);
-            case 'watermark': return new WatermarkParser(tokens, program as any).parse(i, target);
-            case 'thumbnail': return new ThumbnailParser(tokens, program as any).parse(i, target);
-            case 'output':    return new OutputParser(tokens, program as any, dispatch).parse(i, target);
-            case 'profile':   return new ProfileParser(tokens, program as any, dispatch).parse(i, target);
-            case 'use':       return new UseParser(tokens, program as any).parse(i, target);
-            case 'resize':    return new ResizeParser(tokens, program as any).parse(i, target);
-            case 'fps':       return new FpsParser(tokens, program as any).parse(i, target);
             default:
-                throw new CompilerError(`Unknown keyword: ${keyword}`, token.line, token.column, token.length);
+                throw new CompilerError(
+                    `Unknown keyword: ${keyword}`,
+                    token.line, token.column, token.length,
+                );
         }
     }
 
+    /**
+     * Main parse loop — walks top-level tokens and delegates each keyword.
+     * Only `KEYWORD` tokens are valid at the top level; anything else throws.
+     *
+     * @returns A fully constructed {@link ProgramV2} AST.
+     */
     parse(): ProgramV2 {
         let i = 0;
         while (i < this.tokens.length) {
@@ -224,9 +121,12 @@ class ParserV2 {
             if (!token) break;
 
             if (token.type === 'KEYWORD') {
-                i = this.parseCommand(token.value, i, this.program);
+                i = this.parseCommand(token.value, i, this.program as any);
             } else {
-                throw new CompilerError(`Unexpected token "${token.value}"`, token.line, token.column, token.length);
+                throw new CompilerError(
+                    `Unexpected token "${token.value}"`,
+                    token.line, token.column, token.length,
+                );
             }
             i++;
         }
@@ -234,4 +134,10 @@ class ParserV2 {
     }
 }
 
+/**
+ * Core V2 parsing function. Converts a token array into a {@link ProgramV2} AST.
+ *
+ * @param tokens Token array generated by the lexer for a V2 `.crn` script.
+ * @returns      A fully constructed ProgramV2 AST object.
+ */
 export const parseTokensV2 = (tokens: Token[]): ProgramV2 => new ParserV2(tokens).parse();

@@ -14,11 +14,12 @@ Instead of memorizing complex FFmpeg flags and filter graphs, you describe your 
 * Built-in semantic validation
 * **Audio-first support** — process podcasts, music, and audio files without any video
 * **Full audio block** — codec, bitrate, sample rate, channels, normalization, EQ, compression, reverb, fade in/out
-* **Audio-only inputs** — `.mp3`, `.wav`, `.aac`, `.flac`, `.ogg`, `.m4a`, `.opus`, `.wma`, `.aiff`
+* **Audio-only inputs** — `.mp3` `.wav` `.aac` `.flac` `.ogg` `.m4a` `.opus` `.wma` `.aiff`
 * Profile system for reusable configurations
 * Watermark and thumbnail support
 * Video resizing and frame rate conversion
 * Codec and bitrate configuration
+* **V2 mode** — multi-source timelines, named clips, and audio volume mixing
 * Multi-stage compiler architecture (Lexer → Parser → Analyzer → Codegen)
 * Detailed compilation diagnostics
 
@@ -160,6 +161,206 @@ ffmpeg -i video.mp4 \
 
 ---
 
+# Kurenai V2 — Multi-Source Timeline Mode
+
+V2 extends the language with **named sources**, **time-ranged clips**, an **audio mix block**, and an **ordered timeline**. Enable V2 mode by placing `use v2` as the first line of your script.
+
+All V1 keywords (`encode`, `bitrate`, `resize`, `fps`, `audio`, `watermark`, `thumbnail`, `output`, `profile`, `use`) remain fully supported and unchanged inside a V2 script.
+
+---
+
+## V2 Quick Example
+
+```kurenai
+use v2
+
+# 1. Declare named input sources
+source intro  "intro.mp4"
+source main   "main.mp4"
+source outro  "outro.mp4"
+source music  "background.mp3"
+source voice  "voiceover.mp3"
+
+# 2. Cut clips from sources
+clip c_intro from intro  0s to 10s
+clip c_main  from main   5s to 45s
+clip c_outro from outro  0s  to 8s
+
+# 3. Define an audio mix (multiple tracks with per-track volume)
+mix bg {
+  track music volume 0.3
+  track voice volume 1.0
+}
+
+# 4. Arrange clips into the final timeline
+timeline {
+  c_intro
+  c_main
+  c_outro
+}
+
+# 5. Apply global settings (same as V1)
+encode  h264 aac
+bitrate 8000k
+audio   bg      # reference the mix by name
+
+output "final.mp4"
+```
+
+**Generated commands:**
+
+```bash
+# Pass 1 — render each clip segment
+ffmpeg -ss 0  -to 10 -i intro.mp4 -c:v libx264 -c:a aac -b:v 8000k segment_c_intro.mp4
+ffmpeg -ss 5  -to 45 -i main.mp4  -c:v libx264 -c:a aac -b:v 8000k segment_c_main.mp4
+ffmpeg -ss 0  -to 8  -i outro.mp4 -c:v libx264 -c:a aac -b:v 8000k segment_c_outro.mp4
+
+# Pass 2 — concatenate segments and mix audio  (write segments.txt first)
+ffmpeg -f concat -safe 0 -i segments.txt \
+  -i background.mp3 -i voiceover.mp3 \
+  -filter_complex "[1:a]volume=0.3[music];[2:a]volume=1[voice];[music][voice]amix=inputs=2:duration=longest[aout]" \
+  -map 0:v -c:v copy -map [aout] -c:a aac \
+  final.mp4
+```
+
+---
+
+## V2 Language Reference
+
+### `use v2`
+
+Must be the **first line** of the script. Activates the V2 parser and code generator.
+
+```kurenai
+use v2
+```
+
+---
+
+### `source`
+
+Declares a named input file. The name is used by `clip` and `mix` statements.
+
+```
+source NAME "file.ext"
+```
+
+```kurenai
+source intro "intro.mp4"
+source music "background.mp3"
+```
+
+Supported video formats: `.mp4` `.avi` `.mkv` `.mov` `.flv` `.wmv` `.webm` `.mpeg` `.mpg` `.m4v`
+
+Supported audio formats: `.mp3` `.wav` `.aac` `.flac` `.ogg` `.m4a` `.opus` `.wma` `.aiff`
+
+---
+
+### `clip`
+
+Cuts a time range from a named source and assigns it a clip name.
+
+```
+clip NAME from SOURCE STARTs to ENDs
+```
+
+```kurenai
+clip c_intro from intro 0s  to 10s
+clip c_main  from main  5s  to 45s
+clip c_outro from outro 0s  to 8s
+```
+
+| Part | Type | Description |
+|---|---|---|
+| `NAME` | identifier | Unique name for this clip |
+| `SOURCE` | identifier | Name of a declared `source` |
+| `START` / `END` | time (e.g. `5s`) | Start and end timestamps |
+
+---
+
+### `mix`
+
+Defines a named audio mix containing one or more tracks, each with an independent volume multiplier.
+
+```
+mix NAME {
+  track SOURCE volume N.NN
+  ...
+}
+```
+
+```kurenai
+mix bg {
+  track music volume 0.3   # 30% volume
+  track voice volume 1.0   # full volume
+}
+```
+
+| Part | Type | Description |
+|---|---|---|
+| `NAME` | identifier | Unique name for this mix |
+| `SOURCE` | identifier | Name of a declared `source` |
+| `N.NN` | float | Volume multiplier (e.g. `0.3`, `1.0`) |
+
+Reference a mix in the `audio` keyword by its name:
+
+```kurenai
+audio bg
+```
+
+---
+
+### `timeline`
+
+Declares the ordered sequence of clips that will be concatenated into the final output.
+
+```
+timeline {
+  CLIP_NAME
+  CLIP_NAME
+  ...
+}
+```
+
+```kurenai
+timeline {
+  c_intro
+  c_main
+  c_outro
+}
+```
+
+---
+
+## V2 Code Generation — Two-Pass Strategy
+
+| Pass | What it does |
+|---|---|
+| **Pass 1** | One `ffmpeg -ss … -to … -i SOURCE` command per clip in timeline order, producing `segment_CLIP.mp4` files |
+| **Pass 2** | One `ffmpeg -f concat` command per `output` statement; audio tracks from a `mix` block are composed via `-filter_complex amix` |
+| **Pass 3** | Optional `ffmpeg -ss … -frames:v 1` thumbnail extraction from the first output |
+
+---
+
+## V2 Semantic Rules
+
+The analyzer enforces these rules and throws a `CompilerError` on any violation:
+
+| Rule | Error message |
+|---|---|
+| At least one `source` declared | "At least one source is required." |
+| At least one `output` declared | "Output file is missing." |
+| `timeline` present when clips are defined | "Timeline is required when clips are defined." |
+| Source file format is supported | "Unsupported source format: …" |
+| `clip` references a declared `source` | `Clip "X" references unknown source "Y"` |
+| Clip cannot reference itself as source | `Clip "X" cannot reference itself as a source` |
+| Clip `start` < `end` | `Clip "X" start must be less than end` |
+| Mix `track` references a declared `source` | `Track in mix "X" references unknown source "Y"` |
+| `timeline` references declared clips only | `Timeline references unknown clip "X"` |
+| `audio NAME` references a declared mix | `Audio mix "X" not found` |
+
+---
+
 # CLI Usage
 
 ## Validate
@@ -190,16 +391,47 @@ Example output:
 
 ```text
 [1/4] Lexing...
-✓ 25 tokens
+      ✓ 25 tokens
 
 [2/4] Parsing...
-✓ AST built
+      ✓ AST built
 
 [3/4] Analyzing...
-✓ Valid
+      ✓ Valid
 
 [4/4] Generating...
-✓ Done
+      ✓ Done
+```
+
+---
+
+## Explain
+
+Prints a human-readable breakdown of the compilation result.
+
+```bash
+kurenai explain pipeline.crn
+```
+
+V2 output example:
+
+```text
+Sources:
+  ✓ intro: intro.mp4
+  ✓ music: background.mp3
+
+Clips:
+  ✓ c_intro from intro (0s to 10s)
+
+Mixes:
+  ✓ bg: [music (vol: 0.3), voice (vol: 1)]
+
+Timeline:
+  ✓ c_intro → c_main → c_outro
+
+Encoding:
+  ✓ video codec: h264 → libx264
+  ✓ audio codec: aac
 ```
 
 ---
@@ -214,7 +446,7 @@ kurenai run pipeline.crn
 
 ---
 
-# Language Reference
+# Language Reference (V1)
 
 ---
 
@@ -250,7 +482,7 @@ Supported audio formats: `.mp3` `.wav` `.aac` `.flac` `.ogg` `.m4a` `.opus` `.wm
 
 ---
 
-## `audio` — Audio Block _(new)_
+## `audio` — Audio Block
 
 The `audio` block configures all audio processing in one place. Every property is optional; include only what you need.
 
@@ -430,12 +662,12 @@ Result: Resolution `1920x1080`, FPS `30`, Codec `h264`.
 
 ---
 
-## Compile
+## Compile (V1)
 
 ```ts
 import { compile } from "@arafat2020/kurenai";
 
-const commands = compile(`
+const { commands } = compile(`
   input "podcast.mp3"
 
   audio {
@@ -450,20 +682,74 @@ const commands = compile(`
 // commands[0] → 'ffmpeg -i podcast.mp3 -c:a aac -b:a 192k -af "loudnorm=I=-14" podcast_mastered.mp3'
 ```
 
-Throws a `CompilerError` if validation fails.
+---
+
+## Compile (V2)
+
+```ts
+import { compile, type ProgramV2 } from "@arafat2020/kurenai";
+
+const { ast, commands } = compile(`
+  use v2
+
+  source intro "intro.mp4"
+  source music "bg.mp3"
+
+  clip c_intro from intro 0s to 10s
+
+  mix bg {
+    track music volume 0.5
+  }
+
+  timeline { c_intro }
+
+  encode h264 aac
+  audio  bg
+  output "final.mp4"
+`);
+
+const v2 = ast as ProgramV2;
+console.log(Object.keys(v2.sources));  // ['intro', 'music']
+console.log(v2.timeline?.clips);       // ['c_intro']
+console.log(commands);                 // Pass-1 + Pass-2 FFmpeg commands
+```
 
 ---
 
-## Explain
+## Individual Pipeline Stages
+
+```ts
+import { lex, parse, analyzeAst, generateCommands } from "@arafat2020/kurenai";
+
+const tokens   = lex(source);
+const ast      = parse(tokens);       // returns Program | ProgramV2
+analyzeAst(ast);                      // throws CompilerError on failure
+const commands = generateCommands(ast);
+```
+
+---
+
+## Kurenai Class
 
 ```ts
 import { Kurenai } from "@arafat2020/kurenai";
 
 const k = new Kurenai();
+
+// Full pipeline
+const { commands } = k.compile(source);
+
+// Validate only (no codegen)
+k.validate(source);
+
+// Human-readable breakdown to stdout (works for both V1 and V2)
 k.explain(source);
+
+// Compile + execute FFmpeg (Node.js only)
+k.run(source);
 ```
 
-Prints a human-readable breakdown of the compilation result.
+Throws a `CompilerError` if validation fails.
 
 ---
 
@@ -472,14 +758,16 @@ Prints a human-readable breakdown of the compilation result.
 ```text
 Source (.crn)
     ↓
-  Lexer          — tokenises keywords, strings, numbers, time, dB values, etc.
+  Lexer           — tokenises keywords, strings, numbers, time, dB, floats, etc.
     ↓
-  Parser         — builds a typed Program AST
-    ↓             (delegates each keyword to src/core/*Parser.ts)
-  Analyzer       — validates formats, dimensions, codecs, FPS range
-    ↓
-  Code Generator — translates AST nodes to FFmpeg flag sequences
-    ↓
+  Parser          — builds a typed AST
+    ↓               V1: Program    (src/core/*Parser.ts)
+    ↓               V2: ProgramV2  (src/core/SourceParser, ClipParser,
+    ↓                               MixParser, TimelineParser  + all V1 parsers)
+  Analyzer        — validates formats, dimensions, codecs, FPS range,
+    ↓               clip references, time ranges, mix track sources
+  Code Generator  — translates AST nodes to FFmpeg flag sequences
+    ↓               V2: two-pass strategy (clip segments → concat + amix)
 FFmpeg Commands
 ```
 
@@ -499,6 +787,15 @@ try {
     console.error(`Error at line ${err.line}: ${err.message}`);
   }
 }
+```
+
+The CLI displays the error with an underline pointing to the exact token:
+
+```text
+Error on line 3:
+  clip c_intro from unknown 0s to 10s
+                    ^^^^^^^
+  Clip "c_intro" references unknown source "unknown"
 ```
 
 ---
