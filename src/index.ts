@@ -30,6 +30,8 @@ export interface CompileResult {
 export interface CompileOptions {
     /** When true, logs each pipeline stage to stdout */
     verbose?: boolean;
+    start?: number;   // seconds
+    end?: number;     // seconds
 }
 
 // ── Pipeline stages ──
@@ -68,10 +70,11 @@ export function analyzeAst(ast: Program): void {
  * **Stage 4** – Generate: translate a valid AST into FFmpeg command strings.
  *
  * @param ast The Program AST produced by {@link parse} (must be analyzed first)
+ * @param options Optional compilation flags (e.g. `start`, `end`)
  * @returns An array of executable FFmpeg command strings
  */
-export function generateCommands(ast: Program): string[] {
-    return generate(ast);
+export function generateCommands(ast: Program, options: CompileOptions = {}): string[] {
+    return generate(ast, options);
 }
 
 // ── Top-level compile function ──
@@ -88,7 +91,7 @@ export function generateCommands(ast: Program): string[] {
  * @param options Optional compilation flags (e.g. `verbose`)
  * @returns A {@link CompileResult} containing the AST and the generated commands
  *
- * @throws {CompilerError} When any compilation stage fails
+ * @throws {CompilerError} When any compilation stage failure
  *
  * @example
  * ```ts
@@ -120,7 +123,7 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
     if (verbose) console.log("      ✓ Valid");
 
     if (verbose) console.log("[4/4] Generating...");
-    const commands = generate(ast);
+    const commands = generate(ast, options);
     if (verbose) console.log("      ✓ Done\n");
 
     return { ast, commands };
@@ -183,10 +186,11 @@ export class Kurenai {
      * Generates FFmpeg command string(s) from a valid AST (Stage 4).
      *
      * @param ast Analyzed Program AST
+     * @param options Optional compilation flags
      * @returns Array of FFmpeg command strings
      */
-    generate(ast: Program): string[] {
-        return generate(ast);
+    generate(ast: Program, options: CompileOptions = {}): string[] {
+        return generate(ast, options);
     }
 
     /**
