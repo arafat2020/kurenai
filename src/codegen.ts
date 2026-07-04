@@ -37,7 +37,7 @@ import { type ProgramV2 } from "./interfaces/v2.js";
  * @param options Optional compilation flags (e.g. `start`, `end`)
  * @returns An array of ffmpeg command strings ready for execution
  */
-export function generate(code: Program | ProgramV2): string[] {
+export function generate(code: Program | ProgramV2, options: { start?: number; end?: number } = {}): string[] {
     if ('version' in code && code.version === 2) {
         return generateV2(code as ProgramV2);
     }

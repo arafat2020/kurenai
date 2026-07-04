@@ -1,26 +1,36 @@
 use v2
+
 # Define named sources
+
 source intro "intro.mp4"
 source main "main.mp4"
 source outro "outro.mp4"
 source music "background.mp3"
 source voice "voiceover.mp3"
+
 # Cut clips from sources
+
 clip c_intro from intro 0s to 10s
 clip c_main from main 5s to 45s
 clip c_outro from outro 0s to 8s
+
 # Mix audio tracks
+
 mix bg {
 track music volume 0.3
 track voice volume 1.0
 }
+
 # Arrange clips into a timeline
+
 timeline {
 c_intro
 c_main
 c_outro
 }
+
 # Apply global settings (same as v1)
+
 encode h264 aac
 bitrate 8000k
 audio bg
