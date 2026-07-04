@@ -15,7 +15,8 @@ export type TokenType =
     'RBRACE' |
     'DECIBEL' |
     'AUDIO_RATIO' |
-    'MILLISECOND';
+    'MILLISECOND' |
+    'FLOAT'; // V2 addition
 
 /**
  * Represents a single token extracted from the input script.
@@ -68,6 +69,8 @@ function lexer(input: string): Token[] {
                 tokenType = 'KEYWORD';
             } else if (isIdentifier(word)) {
                 tokenType = 'IDENTIFIER';
+            } else if (isFloat(word)) {
+                tokenType = 'FLOAT';
             } else if (isNumber(word)) {
                 tokenType = 'NUMBER';
             } else if (isString(word)) {
@@ -101,13 +104,22 @@ function lexer(input: string): Token[] {
 
 /** Checks if a word is a built-in Kurenai keyword */
 function isKeyword(word: string): boolean {
-    const keywords = ['resize', 'input', 'fps', 'output', 'encode', 'bitrate', 'audio', 'watermark', 'thumbnail', 'profile', 'use'];
+    const keywords = [
+        'resize', 'input', 'fps', 'output', 'encode', 'bitrate', 'audio', 'watermark', 'thumbnail', 'profile', 'use',
+        // V2 Keywords
+        'source', 'clip', 'timeline', 'mix', 'track', 'from', 'to', 'volume'
+    ];
     return keywords.includes(word);
 }
 
 /** Checks if a word is a valid identifier (e.g., variable or profile name) */
 function isIdentifier(word: string): boolean {
     return /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(word);
+}
+
+/** Checks if a word is a floating point number */
+function isFloat(word: string): boolean {
+    return /^\d+\.\d+$/.test(word);
 }
 
 /** Checks if a word is a raw number */
@@ -140,12 +152,14 @@ function isDecibel(word: string): boolean {
     return /^[+-]?\d+(\.\d+)?db$/.test(word);
 }
 
+/** Checks if a word is an audio ratio (e.g., 4:1) */
 function isAudioRatio(word: string): boolean {
     return /^\d+:\d+$/.test(word);
 }
 
+/** Checks if a word is a millisecond format (e.g., 5ms) */
 function isMillisecond(word: string): boolean {
     return /^\d+ms$/.test(word);
 }
 
-export { lexer, isKeyword, isIdentifier, isNumber, isString, isResolution, isBitrate, isTime, isDecibel, isAudioRatio, isMillisecond };
+export { lexer, isKeyword, isIdentifier, isFloat, isNumber, isString, isResolution, isBitrate, isTime, isDecibel, isAudioRatio, isMillisecond };

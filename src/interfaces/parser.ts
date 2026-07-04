@@ -16,7 +16,11 @@ export interface ASTNode {
  * Represents a single input file in the AST.
  * The input file is mandatory and must be specified at the top of the script.
  */
-interface InputNode extends ASTNode {
+/**
+ * Represents a single input file in the AST.
+ * The input file is mandatory and must be specified at the top of the script.
+ */
+export interface InputNode extends ASTNode {
     type: 'INPUT';
     value: string;
 }
@@ -24,7 +28,7 @@ interface InputNode extends ASTNode {
 /** Represents a single output block in the AST.
  * Each output block can have its own configuration, which overrides global settings.
  */
-interface OutputBlockNode extends ASTNode {
+export interface OutputBlockNode extends ASTNode {
     type: 'OUTPUT_BLOCK';
     file: string;
     overrides: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
@@ -38,7 +42,7 @@ interface OutputBlockNode extends ASTNode {
 /**
  * Represents a resize command in the AST.
  */
-interface ResizeNode extends ASTNode {
+export interface ResizeNode extends ASTNode {
     type: 'RESIZE';
     width: number;
     height: number;
@@ -47,7 +51,7 @@ interface ResizeNode extends ASTNode {
 /** 
  * Represents an FPS command in the AST.
  */
-interface FpsNode extends ASTNode {
+export interface FpsNode extends ASTNode {
     type: 'FPS';
     value: number;
 }
@@ -55,7 +59,7 @@ interface FpsNode extends ASTNode {
 /** 
  * Represents an encode command in the AST, specifying video and audio codecs.
  */
-interface EncodeNode extends ASTNode {
+export interface EncodeNode extends ASTNode {
     type: 'ENCODE';
     videoCodec: VideoCodec;
     audioCodec: AudioCodec;
@@ -64,7 +68,7 @@ interface EncodeNode extends ASTNode {
 /** 
  * Represents a bitrate command in the AST.
  */
-interface BitrateNode extends ASTNode {
+export interface BitrateNode extends ASTNode {
     type: 'BITRATE';
     value: string;
 }
@@ -90,7 +94,7 @@ export interface AudioNode extends ASTNode {
 /** 
  * Represents a watermark command in the AST.
  */
-interface WatermarkNode extends ASTNode {
+export interface WatermarkNode extends ASTNode {
     type: 'WATERMARK';
     file: string;
     position: WatermarkPosition;
@@ -99,7 +103,7 @@ interface WatermarkNode extends ASTNode {
 /**
  * Represents a thumbnail command in the AST.
  */
-interface ThumbnailNode extends ASTNode {
+export interface ThumbnailNode extends ASTNode {
     type: 'THUMBNAIL';
     value: string;
 }
@@ -108,7 +112,7 @@ interface ThumbnailNode extends ASTNode {
  * Represents a profile command in the AST.
  * Profiles allow users to define reusable configurations that can be applied to multiple outputs.
  */
-interface ProfileNode extends ASTNode {
+export interface ProfileNode extends ASTNode {
     type: 'PROFILE';
     name: string;
     body: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
@@ -154,6 +158,7 @@ export interface CompressionNode extends ASTNode {
  * and any reusable profiles defined in the script.
  */
 export interface Program extends ASTNode {
+    version?: number;
     input: InputNode;
     outputs: OutputBlockNode[];
     resize?: ResizeNode;

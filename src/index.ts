@@ -4,11 +4,13 @@ import { analyze } from "./analyzer.js";
 import { generate } from "./codegen.js";
 import { explain } from "./explain.js";
 import { CompilerError } from "./errors.js";
+import { type ProgramV2 } from "./interfaces/v2.js";
 
 // ── Re-export core types so consumers get everything from one import ──
 export { CompilerError } from "./errors.js";
 export { type Token, type TokenType } from "./lexer.js";
 export { type Program, VideoCodec, AudioCodec, WatermarkPosition } from "./parser.js";
+export { type ProgramV2, type SourceNode, type ClipNode, type TrackNode, type MixNode, type TimelineNode } from "./interfaces/v2.js";
 export { SupportedVideoFormat } from "./analyzer.js";
 export { videoCodecMap } from "./codegen.js";
 
@@ -19,7 +21,7 @@ export { videoCodecMap } from "./codegen.js";
  */
 export interface CompileResult {
     /** The parsed and analyzed AST produced by the pipeline */
-    ast: Program;
+    ast: Program | ProgramV2;
     /** The final FFmpeg command string(s) ready to be executed */
     commands: string[];
 }
@@ -48,9 +50,9 @@ export function lex(source: string): Token[] {
  * **Stage 2** – Parse: convert tokens into an AST.
  *
  * @param tokens Tokens produced by {@link lex}
- * @returns A fully constructed Program AST
+ * @returns A fully constructed Program or ProgramV2 AST
  */
-export function parse(tokens: Token[]): Program {
+export function parse(tokens: Token[]): Program | ProgramV2 {
     return parseTokens(tokens);
 }
 
@@ -60,7 +62,7 @@ export function parse(tokens: Token[]): Program {
  *
  * @param ast The Program AST produced by {@link parse}
  */
-export function analyzeAst(ast: Program): void {
+export function analyzeAst(ast: Program | ProgramV2): void {
     analyze(ast);
 }
 
@@ -70,7 +72,7 @@ export function analyzeAst(ast: Program): void {
  * @param ast The Program AST produced by {@link parse} (must be analyzed first)
  * @returns An array of executable FFmpeg command strings
  */
-export function generateCommands(ast: Program): string[] {
+export function generateCommands(ast: Program | ProgramV2): string[] {
     return generate(ast);
 }
 
@@ -165,7 +167,7 @@ export class Kurenai {
      * @param tokens Tokens produced by {@link Kurenai.lex}
      * @returns Program AST
      */
-    parse(tokens: Token[]): Program {
+    parse(tokens: Token[]): Program | ProgramV2 {
         return parseTokens(tokens);
     }
 
@@ -175,7 +177,7 @@ export class Kurenai {
      *
      * @param ast Program AST produced by {@link Kurenai.parse}
      */
-    analyze(ast: Program): void {
+    analyze(ast: Program | ProgramV2): void {
         analyze(ast);
     }
 
@@ -185,7 +187,7 @@ export class Kurenai {
      * @param ast Analyzed Program AST
      * @returns Array of FFmpeg command strings
      */
-    generate(ast: Program): string[] {
+    generate(ast: Program | ProgramV2): string[] {
         return generate(ast);
     }
 
