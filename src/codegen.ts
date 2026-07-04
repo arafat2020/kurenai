@@ -26,6 +26,9 @@ const positionMap: Record<string, string> = {
     'center': '(main_w-overlay_w)/2:(main_h-overlay_h)/2'
 };
 
+import { generateV2 } from "./codegen-v2.js";
+import { type ProgramV2 } from "./interfaces/v2.js";
+
 /**
  * Translates the validated Program AST into an array of executable FFmpeg commands.
  * It builds the main ffmpeg pipeline and adds extra commands (like thumbnail generation) if needed.
@@ -34,7 +37,11 @@ const positionMap: Record<string, string> = {
  * @param options Optional compilation flags (e.g. `start`, `end`)
  * @returns An array of ffmpeg command strings ready for execution
  */
-export function generate(program: Program, options: CompileOptions = {}): string[] {
+export function generate(code: Program | ProgramV2): string[] {
+    if ('version' in code && code.version === 2) {
+        return generateV2(code as ProgramV2);
+    }
+    const program = code as Program;
     const commands: string[] = [];
 
     const audioExtensions = ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.opus', '.wma', '.aiff'];
