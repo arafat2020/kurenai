@@ -11,6 +11,7 @@ Instead of memorizing complex FFmpeg flags and filter graphs, you describe your 
 * Human-readable DSL for video **and audio** processing
 * Generates valid FFmpeg commands
 * CLI and TypeScript API
+* Time-range (chunked) rendering support
 * Built-in semantic validation
 * **Audio-first support** — process podcasts, music, and audio files without any video
 * **Full audio block** — codec, bitrate, sample rate, channels, normalization, EQ, compression, reverb, fade in/out

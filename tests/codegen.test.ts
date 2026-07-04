@@ -74,6 +74,20 @@ describe('Codegen Tests', () => {
         expect(cmds[0]).toBe('ffmpeg -i video.mp4 -vf "scale=1920:1080" youtube.mp4');
         expect(cmds[1]).toBe('ffmpeg -i video.mp4 -vf "scale=720:1280" mobile.mp4');
     });
+
+    it('should generate commands with -ss and -to when start and end options are provided', () => {
+        const ast: Program = {
+            type: 'PROGRAM',
+            line: 1,
+            input: { type: 'INPUT', value: 'in.mp4', line: 1 },
+            outputs: [{ type: 'OUTPUT_BLOCK', file: 'out.mp4', overrides: {}, line: 1 }],
+            thumbnail: { type: 'THUMBNAIL', value: '5s', line: 1 },
+            profiles: {}
+        };
+        const cmds = generate(ast, { start: 0, end: 20 });
+        expect(cmds.length).toBe(1);
+        expect(cmds[0]).toBe('ffmpeg -ss 0 -to 20 -i in.mp4 out.mp4');
+    });
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
