@@ -1,6 +1,6 @@
 {
   "name": "@arafat2020/kurenai",
-  "version": "1.4.0-beta.2",
+  "version": "2.0.0-beta.1",
   "description": "A DSL compiler that converts human-readable video pipeline scripts into FFmpeg commands",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,8 +15,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
-    "start": "tsx src/main.ts",
+    "build": "node api.js && tsc",
+    "start": "node api.js && tsx src/main.ts",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
