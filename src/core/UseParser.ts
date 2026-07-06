@@ -17,6 +17,13 @@ export class UseParser extends BaseParser {
             throw new CompilerError('Profile name is required for use', token.line, token.column, token.length);
         }
 
+        // Check if the identifier matches a version pattern
+        const isVersionSwitch = /^v\d+$/.test(nameToken.value);
+        if (isVersionSwitch) {
+            (target as any).version = parseInt(nameToken.value.replace("v", ""));
+            return i + 1;
+        }
+
         const profileName = nameToken.value;
         const profile = this.program.profiles?.[profileName];
 

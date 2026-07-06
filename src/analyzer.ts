@@ -1,5 +1,7 @@
 import { Program, VideoCodec, AudioCodec, WatermarkPosition } from "./parser.js";
 import { CompilerError } from "./errors.js";
+import { analyzeV2 } from "./analyzer-v2.js";
+import { type ProgramV2 } from "./interfaces/v2.js";
 
 /**
  * Defines the video file extensions supported by Kurenai.
@@ -38,7 +40,7 @@ export enum SupportedAudioFormat {
  * @param program The root Program AST
  * @throws CompilerError if input is missing or format is unsupported
  */
-function analyzeInput(input: Program['input'], program: Program): void {
+export function analyzeInput(input: Program['input'], program: Program): void {
     if (!input) {
         throw new CompilerError("Input file is missing.", program.line, program.column, program.length);
     }
@@ -62,7 +64,7 @@ function analyzeInput(input: Program['input'], program: Program): void {
  * @param program The root Program AST
  * @throws CompilerError if output is missing or format is unsupported
  */
-function analyzeOutput(output: Program['outputs'][number], program: Program): void {
+export function analyzeOutput(output: Program['outputs'][number], program: Program): void {
     if (!output) {
         throw new CompilerError("Output block is missing.", program.line, program.column, program.length);
     }
@@ -86,7 +88,7 @@ function analyzeOutput(output: Program['outputs'][number], program: Program): vo
  * @param fps The parsed FpsNode
  * @throws CompilerError if FPS is out of bounds
  */
-function analyzeFps(fps: Program['fps']): void {
+export function analyzeFps(fps: Program['fps']): void {
     if (!fps) return;
 
     if (fps.value <= 0 || fps.value > 240) {
@@ -100,7 +102,7 @@ function analyzeFps(fps: Program['fps']): void {
  * @param resize The parsed ResizeNode
  * @throws CompilerError if dimensions are invalid or not divisible by 2
  */
-function analyzeResize(resize: Program['resize']): void {
+export function analyzeResize(resize: Program['resize']): void {
     if (!resize) return;
 
     if (resize.width <= 0 || resize.height <= 0) {
@@ -117,7 +119,7 @@ function analyzeResize(resize: Program['resize']): void {
  * @param encode The parsed EncodeNode
  * @throws CompilerError if an unsupported codec is provided
  */
-function analyzeEncode(encode: Program['encode']): void {
+export function analyzeEncode(encode: Program['encode']): void {
     if (!encode) return;
 
     const supportedVideoCodecs = Object.values(VideoCodec) as string[];
@@ -137,7 +139,7 @@ function analyzeEncode(encode: Program['encode']): void {
  * @param watermark The parsed WatermarkNode
  * @throws CompilerError if file path is empty or position is unsupported
  */
-function analyzeWatermark(watermark: Program['watermark']): void {
+export function analyzeWatermark(watermark: Program['watermark']): void {
     if (!watermark) return;
 
     if (!watermark.file || watermark.file.trim() === '') {
@@ -157,16 +159,21 @@ function analyzeWatermark(watermark: Program['watermark']): void {
  * 
  * @param code The fully parsed Program AST
  */
-export function analyze(code: Program): void {
-    analyzeInput(code.input, code);
-    if (!code.outputs || code.outputs.length === 0) {
-        throw new CompilerError("Output file is missing.", code.line, code.column, code.length);
+export function analyze(code: Program | ProgramV2): void {
+    if ('version' in code && code.version === 2) {
+        analyzeV2(code as ProgramV2);
+        return;
     }
-    for (const output of code.outputs) {
-        analyzeOutput(output, code);
+    const program = code as Program;
+    analyzeInput(program.input, program);
+    if (!program.outputs || program.outputs.length === 0) {
+        throw new CompilerError("Output file is missing.", program.line, program.column, program.length);
     }
-    analyzeFps(code.fps);
-    analyzeResize(code.resize);
-    analyzeEncode(code.encode);
-    analyzeWatermark(code.watermark);
+    for (const output of program.outputs) {
+        analyzeOutput(output, program);
+    }
+    analyzeFps(program.fps);
+    analyzeResize(program.resize);
+    analyzeEncode(program.encode);
+    analyzeWatermark(program.watermark);
 }

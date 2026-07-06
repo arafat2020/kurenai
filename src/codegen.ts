@@ -1,4 +1,5 @@
 import { Program } from "./parser";
+import { type CompileOptions } from "./index.js";
 
 /**
  * Maps simple Kurenai video codec names to their FFmpeg equivalents.
@@ -25,20 +26,32 @@ const positionMap: Record<string, string> = {
     'center': '(main_w-overlay_w)/2:(main_h-overlay_h)/2'
 };
 
+import { generateV2 } from "./codegen-v2.js";
+import { type ProgramV2 } from "./interfaces/v2.js";
+
 /**
  * Translates the validated Program AST into an array of executable FFmpeg commands.
  * It builds the main ffmpeg pipeline and adds extra commands (like thumbnail generation) if needed.
  * 
  * @param program The parsed and analyzed Program AST
+ * @param options Optional compilation flags (e.g. `start`, `end`)
  * @returns An array of ffmpeg command strings ready for execution
  */
-export function generate(program:Program): string[] {
+export function generate(code: Program | ProgramV2, options: { start?: number; end?: number } = {}): string[] {
+    if ('version' in code && code.version === 2) {
+        return generateV2(code as ProgramV2);
+    }
+    const program = code as Program;
     const commands: string[] = [];
 
     const audioExtensions = ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.opus', '.wma', '.aiff'];
 
     for (const out of program.outputs) {
-        let cmd = `ffmpeg -i ${program.input.value}`;
+        let cmd = `ffmpeg`;
+        if (options.start !== undefined) cmd += ` -ss ${options.start}`;
+        if (options.end !== undefined) cmd += ` -to ${options.end}`;
+        cmd += ` -i ${program.input.value}`;
+
         const merged = { ...program, ...out.overrides };
         const vfFilters: string[] = [];
 
@@ -171,9 +184,9 @@ export function generate(program:Program): string[] {
         commands.push(cmd);
     }
 
-    if (program.thumbnail) {
-        const thumbCommand = `ffmpeg -i ${program.input.value} -ss ${program.thumbnail.value.replace('s', '')} -frames:v 1 thumb.jpg`;
-        commands.push(thumbCommand);
+    if (program.thumbnail && options.start === undefined && options.end === undefined) {
+        const ts = program.thumbnail.value.replace('s', '');
+        commands.push(`ffmpeg -i ${program.input.value} -ss ${ts} -frames:v 1 thumb.jpg`);
     }
 
     return commands;
