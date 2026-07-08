@@ -14,7 +14,7 @@ const program = new Command();
 program
     .name("kurenai")
     .description("Kurenai Compiler CLI")
-    .version("1.4.0-beta.2");
+    .version("2.0.0-beta.2");
 
 /**
  * Helper function to read the `.crn` script from disk.
@@ -47,10 +47,10 @@ function handleError(err: unknown, source: string, stage: string): void {
     if (err instanceof CompilerError) {
         const lines = source.split('\n');
         const lineText = lines[err.line - 1] ?? '';
-        
+
         console.error(`Error on line ${err.line}:`);
         console.error(`  ${lineText}`);
-        
+
         const padding = ' '.repeat(2 + (err.column - 1));
         const underlines = '^'.repeat(err.length);
         console.error(`${padding}${underlines}`);
@@ -155,7 +155,7 @@ program
             const ast = parseTokens(tokens);
             analyze(ast);
             const commands = generate(ast);
-            
+
             for (const cmd of commands) {
                 console.log(`Executing: ${cmd}`);
                 execSync(cmd, { stdio: "inherit" });
