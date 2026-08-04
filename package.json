@@ -9,6 +9,11 @@
       "import": "./dist/index.js",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/browser.js",
+      "require": "./dist/browser.js",
+      "types": "./dist/browser.d.ts"
     }
   },
   "files": [
@@ -43,7 +48,8 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "g": "^2.0.1"
+    "g": "^2.0.1",
+    "mediabunny": "^1.52.3"
   },
   "bin": {
     "kurenai": "dist/main.js"

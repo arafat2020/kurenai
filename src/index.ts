@@ -6,13 +6,41 @@ import { explain } from "./explain.js";
 import { CompilerError } from "./errors.js";
 import { type ProgramV2 } from "./interfaces/v2.js";
 
-// ── Re-export core types so consumers get everything from one import ──
+import { buildIR } from "./ir/analyzer.js";
+import { type IR } from "./ir/types.js";
+import { detectEnvironment, type RuntimeEnvironment } from "./runtime/environment.js";
+import { resolveTarget, type CompileTarget, type TargetResolutionOptions } from "./runtime/target-resolver.js";
+import {
+    type CompileOutput,
+    type FFmpegOutput,
+    type WebCodecsOutput,
+    type WebCodecsPipelinePlan,
+    type ICodeGenerator,
+} from "./targets/target.interface.js";
+import { FFmpegCodeGenerator } from "./targets/ffmpeg/codegen.js";
+import { WebCodecsCodeGenerator } from "./targets/webcodecs/codegen.js";
+
+// ── Re-export core types & modules so consumers get everything from one import ──
 export { CompilerError } from "./errors.js";
 export { type Token, type TokenType } from "./lexer.js";
 export { type Program, VideoCodec, AudioCodec, WatermarkPosition } from "./parser.js";
 export { type ProgramV2, type SourceNode, type ClipNode, type TrackNode, type MixNode, type TimelineNode } from "./interfaces/v2.js";
 export { SupportedVideoFormat } from "./analyzer.js";
 export { videoCodecMap } from "./codegen.js";
+
+// ── New Target & IR exports ──
+export { buildIR, type IR };
+export { detectEnvironment, type RuntimeEnvironment };
+export { resolveTarget, type CompileTarget, type TargetResolutionOptions };
+export {
+    type CompileOutput,
+    type FFmpegOutput,
+    type WebCodecsOutput,
+    type WebCodecsPipelinePlan,
+    type ICodeGenerator,
+};
+export { FFmpegCodeGenerator };
+export { WebCodecsCodeGenerator };
 
 // ── Compilation result types ──
 
@@ -27,13 +55,15 @@ export interface CompileResult {
 }
 
 /**
- * Options forwarded to compile() and Kurenai.compile().
+ * Options forwarded to compile(), compileTarget(), and Kurenai.compile().
  */
 export interface CompileOptions {
     /** When true, logs each pipeline stage to stdout */
     verbose?: boolean;
     start?: number;   // seconds
     end?: number;     // seconds
+    /** Target resolution options for compileTarget() */
+    target?: CompileTarget | "auto";
 }
 
 // ── Pipeline stages ──
@@ -79,35 +109,15 @@ export function generateCommands(ast: Program | ProgramV2): string[] {
     return generate(ast);
 }
 
-// ── Top-level compile function ──
+// ── Top-level compile functions ──
 
 /**
- * Runs the complete Kurenai compilation pipeline in a single call:
+ * Runs the complete Kurenai compilation pipeline in a single call (FFmpeg target only).
+ * Retained for 100% backward compatibility with existing codebases.
  *
- * 1. **Lex** – tokenise the DSL source string
- * 2. **Parse** – build the Abstract Syntax Tree
- * 3. **Analyze** – validate semantics (codecs, formats, FPS bounds, …)
- * 4. **Generate** – emit FFmpeg command string(s)
- *
- * @param source A raw Kurenai DSL string (the contents of a `.crn` file)
- * @param options Optional compilation flags (e.g. `verbose`)
+ * @param source A raw Kurenai DSL string
+ * @param options Optional compilation flags
  * @returns A {@link CompileResult} containing the AST and the generated commands
- *
- * @throws {CompilerError} When any compilation stage failure
- *
- * @example
- * ```ts
- * import { compile } from "@arafat2020/kurenai";
- *
- * const { commands } = compile(`
- *   input "video.mp4"
- *   resize 1280x720
- *   encode h264 aac
- *   output "out.mp4"
- * `);
- *
- * console.log(commands[0]); // ffmpeg -i video.mp4 …
- * ```
  */
 export function compile(source: string, options: CompileOptions = {}): CompileResult {
     const { verbose = false } = options;
@@ -131,103 +141,95 @@ export function compile(source: string, options: CompileOptions = {}): CompileRe
     return { ast, commands };
 }
 
+/**
+ * Explicit legacy helper for FFmpeg-only compilation.
+ * Guarantees FFmpeg command output regardless of runtime environment.
+ *
+ * @param source A raw Kurenai DSL string
+ * @param options Optional compilation flags
+ * @returns Array of FFmpeg command strings
+ */
+export function compileToFFmpeg(source: string, options: CompileOptions = {}): string[] {
+    const res = compileTarget(source, { ...options, target: "ffmpeg" });
+    if (res.target === "ffmpeg") {
+        return res.commands;
+    }
+    throw new CompilerError("Failed to resolve FFmpeg target", 1, 1, 0);
+}
+
+/**
+ * New target-dispatch compilation pipeline:
+ *
+ * 1. **Lex** & **Parse** source to raw AST
+ * 2. **Analyze & Normalize** to target-agnostic IR
+ * 3. **Resolve Target** ("ffmpeg" | "webcodecs" based on environment or explicit option)
+ * 4. **Generate Code** via target-specific code generator
+ *
+ * @param source Raw Kurenai DSL string
+ * @param options Compilation and target resolution options
+ * @returns A {@link CompileOutput} discriminated union (`FFmpegOutput` | `WebCodecsOutput`)
+ */
+export function compileTarget(source: string, options: CompileOptions = {}): CompileOutput {
+    const { verbose = false, start, end, target: targetOpt } = options;
+
+    if (verbose) console.log("[1/4] Lexing...");
+    const tokens = lexer(source);
+
+    if (verbose) console.log("[2/4] Parsing...");
+    const ast = parseTokens(tokens);
+
+    if (verbose) console.log("[3/4] Analyzing & Building IR...");
+    const ir = buildIR(ast);
+
+    const target = resolveTarget(targetOpt ? { target: targetOpt } : {});
+    if (verbose) console.log(`      ✓ Target resolved to: "${target}"`);
+
+    if (verbose) console.log("[4/4] Generating target output...");
+    if (target === "ffmpeg") {
+        const generator = new FFmpegCodeGenerator(start, end);
+        return generator.generate(ir);
+    } else {
+        const generator = new WebCodecsCodeGenerator();
+        return generator.generate(ir);
+    }
+}
+
 // ── Kurenai class ──
 
 /**
  * A class-based API that mirrors every CLI command as a method.
- * Useful when you need fine-grained control or want to reuse an instance.
- *
- * @example
- * ```ts
- * import { Kurenai } from "@arafat2020/kurenai";
- *
- * const k = new Kurenai();
- *
- * // Compile and get commands
- * const commands = k.compile(source);
- *
- * // Validate only (no codegen)
- * k.validate(source);
- *
- * // Print a human-readable breakdown
- * k.explain(source);
- * ```
  */
 export class Kurenai {
-    /**
-     * Tokenises the DSL source string (Stage 1).
-     *
-     * @param source Raw Kurenai DSL string
-     * @returns Token array
-     */
     lex(source: string): Token[] {
         return lexer(source);
     }
 
-    /**
-     * Converts a token array into a Program AST (Stage 2).
-     *
-     * @param tokens Tokens produced by {@link Kurenai.lex}
-     * @returns Program AST
-     */
     parse(tokens: Token[]): Program | ProgramV2 {
         return parseTokens(tokens);
     }
 
-    /**
-     * Performs semantic analysis on the AST (Stage 3).
-     * Throws {@link CompilerError} if the program is invalid.
-     *
-     * @param ast Program AST produced by {@link Kurenai.parse}
-     */
     analyze(ast: Program | ProgramV2): void {
         analyze(ast);
     }
 
-    /**
-     * Generates FFmpeg command string(s) from a valid AST (Stage 4).
-     *
-     * @param ast Analyzed Program AST
-     * @param options Optional compilation flags
-     * @returns Array of FFmpeg command strings
-     */
     generate(ast: Program | ProgramV2): string[] {
         return generate(ast);
     }
 
-    /**
-     * **CLI `compile` equivalent** – runs all 4 stages and returns the results.
-     *
-     * @param source Raw Kurenai DSL string
-     * @param options Optional compilation flags
-     * @returns {@link CompileResult} containing the AST and generated commands
-     * @throws {CompilerError} on any pipeline failure
-     */
     compile(source: string, options: CompileOptions = {}): CompileResult {
         return compile(source, options);
     }
 
-    /**
-     * **CLI `validate` equivalent** – runs Stages 1-3 (lex → parse → analyze)
-     * without performing code generation. Ideal for syntax and semantic checking.
-     *
-     * @param source Raw Kurenai DSL string
-     * @throws {CompilerError} if the source is syntactically or semantically invalid
-     */
+    compileTarget(source: string, options: CompileOptions = {}): CompileOutput {
+        return compileTarget(source, options);
+    }
+
     validate(source: string): void {
         const tokens = lexer(source);
         const ast = parseTokens(tokens);
         analyze(ast);
     }
 
-    /**
-     * **CLI `explain` equivalent** – runs the full pipeline then prints a
-     * human-readable breakdown of inputs, filters, encoding, and the generated
-     * FFmpeg command(s) to stdout.
-     *
-     * @param source Raw Kurenai DSL string
-     * @throws {CompilerError} on any pipeline failure
-     */
     explain(source: string): void {
         const tokens = lexer(source);
         const ast = parseTokens(tokens);
@@ -236,17 +238,6 @@ export class Kurenai {
         explain(ast, commands);
     }
 
-    /**
-     * **CLI `run` equivalent** – compiles the source and executes each generated
-     * FFmpeg command synchronously via the host shell.
-     *
-     * > **Note:** This method requires Node.js and will throw at runtime in
-     * > non-Node environments (e.g., browsers, Deno without `--allow-run`).
-     *
-     * @param source Raw Kurenai DSL string
-     * @throws {CompilerError} on pipeline failure
-     * @throws {Error} if FFmpeg is not installed or any command fails
-     */
     run(source: string): void {
         const { execSync } = require("node:child_process") as typeof import("node:child_process");
         const { commands } = this.compile(source);
