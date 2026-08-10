@@ -130,12 +130,12 @@ describe("compileTarget() in a real browser", () => {
 // ── Full round-trip: compile → capability check ───────────────────────────────
 
 describe("compile → capability check round-trip (browser environment)", () => {
-    it("compileTarget() + checkWebCodecsCapability() succeeds for h264+aac", async () => {
+    it("compileTarget() + checkWebCodecsCapability() succeeds for vp9+opus", async () => {
         const source = `
-            input "input.mp4"
+            input "input.webm"
             resize 1280x720
-            encode h264 aac
-            output "output.mp4"
+            encode vp9 opus
+            output "output.webm"
         `;
         const result = compileTarget(source, { target: "webcodecs" });
         expect(result.target).toBe("webcodecs");
@@ -144,7 +144,7 @@ describe("compile → capability check round-trip (browser environment)", () => 
             const cap = await checkWebCodecsCapability(result.plan);
             expect(cap).toBeDefined();
             expect(typeof cap.supported).toBe("boolean");
-            // Chromium always supports h264 and aac
+            // Chromium supports vp9 and opus across all OS platforms (including Linux CI)
             expect(cap.supported).toBe(true);
         }
     });
