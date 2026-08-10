@@ -15,7 +15,7 @@ const program = new Command();
 program
     .name("kurenai")
     .description("Kurenai Compiler CLI")
-    .version("2.2.0-beta.0");
+    .version("2.2.0-beta.1");
 
 /**
  * Helper function to read the `.crn` script from disk.
