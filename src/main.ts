@@ -6,6 +6,7 @@ import { lexer } from "./lexer.js";
 import { parseTokens } from "./parser.js";
 import { analyze } from "./analyzer.js";
 import { generate } from "./codegen.js";
+import { compileTarget, type CompileTarget } from "./index.js";
 import { explain } from "./explain.js";
 import { CompilerError } from "./errors.js";
 
@@ -86,32 +87,24 @@ program
 /**
  * CLI Command: compile
  * Runs the compiler pipeline (lexer -> parser -> analyzer -> codegen)
- * and prints out the resulting FFmpeg commands.
+ * and prints out the resulting FFmpeg commands (or WebCodecs plan if target specified).
  */
 program
     .command("compile <file>")
-    .description("Runs all stages and prints the FFmpeg command")
+    .description("Runs target dispatch pipeline and prints the compilation output")
     .option("--verbose", "Enable verbose output")
+    .option("--target <target>", "Target platform (ffmpeg or webcodecs)", "ffmpeg")
     .action((file, options) => {
         const source = readFile(file);
         try {
-            if (options.verbose) console.log('[1/4] Lexing...');
-            const tokens = lexer(source);
-            if (options.verbose) console.log(`      ✓ ${tokens.length} tokens`);
+            const target: CompileTarget = options.target === "webcodecs" ? "webcodecs" : "ffmpeg";
+            const result = compileTarget(source, { verbose: options.verbose, target });
 
-            if (options.verbose) console.log('[2/4] Parsing...');
-            const ast = parseTokens(tokens);
-            if (options.verbose) console.log('      ✓ AST built');
-
-            if (options.verbose) console.log('[3/4] Analyzing...');
-            analyze(ast);
-            if (options.verbose) console.log('      ✓ Valid');
-
-            if (options.verbose) console.log('[4/4] Generating...');
-            const commands = generate(ast);
-            if (options.verbose) console.log('      ✓ Done\n');
-
-            commands.forEach((cmd) => console.log(cmd));
+            if (result.target === "ffmpeg") {
+                result.commands.forEach((cmd) => console.log(cmd));
+            } else {
+                console.log(JSON.stringify(result.plan, null, 2));
+            }
         } catch (err) {
             handleError(err, source, "Compilation");
             process.exit(1);
@@ -151,12 +144,12 @@ program
     .action((file) => {
         const source = readFile(file);
         try {
-            const tokens = lexer(source);
-            const ast = parseTokens(tokens);
-            analyze(ast);
-            const commands = generate(ast);
+            const result = compileTarget(source, { target: "ffmpeg" });
+            if (result.target !== "ffmpeg") {
+                throw new Error(`kurenai run: target "${result.target}" cannot run from the CLI`);
+            }
 
-            for (const cmd of commands) {
+            for (const cmd of result.commands) {
                 console.log(`Executing: ${cmd}`);
                 execSync(cmd, { stdio: "inherit" });
             }
@@ -167,4 +160,3 @@ program
     });
 
 program.parse(process.argv);
-
