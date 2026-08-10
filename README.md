@@ -22,6 +22,9 @@ Instead of memorizing complex FFmpeg flags and filter graphs, you describe your 
 * Codec and bitrate configuration
 * **V2 mode** — multi-source timelines, named clips, and audio volume mixing
 * Multi-stage compiler architecture (Lexer → Parser → Analyzer → Codegen)
+* **Target-Dispatch Architecture** — target `ffmpeg` for servers or `webcodecs` for client-side processing
+* **In-Browser Video Processing** — zero server-cost video encoding directly in the browser via WebCodecs & Mediabunny
+* **Pre-Flight Hardware Capability Check** — test client GPU/browser encoder support with `checkWebCodecsCapability()`
 * Detailed compilation diagnostics
 
 ---
@@ -223,6 +226,59 @@ ffmpeg -f concat -safe 0 -i segments.txt \
   -map 0:v -c:v copy -map [aout] -c:a aac \
   final.mp4
 ```
+
+---
+
+# In-Browser Video Processing (WebCodecs)
+
+Kurenai can compile `.crn` scripts into structured execution plans (`WebCodecsPipelinePlan`) that execute **directly inside the browser** using WebCodecs & [Mediabunny](https://github.com/mediabunny).
+
+### Benefits
+- **Zero Server Cost**: Client GPU/CPU renders the video.
+- **Privacy First**: Video files never leave the user's browser.
+- **Instant Start**: No multi-gigabyte uploads to cloud servers.
+
+### Basic Browser Example
+
+```ts
+import { compileTarget } from "@arafat2020/kurenai";
+import {
+  checkWebCodecsCapability,
+  executeWebCodecsPipeline,
+} from "@arafat2020/kurenai/browser";
+
+// 1. Compile script (auto-detects 'browser' -> target: 'webcodecs')
+const result = compileTarget(`
+  input "user_video.mp4"
+  resize 1280x720
+  fps 30
+  encode h264 aac
+  bitrate 2.5M
+  output "output.mp4"
+`);
+
+if (result.target === "webcodecs") {
+  // 2. Pre-flight hardware encoder capability check
+  const cap = await checkWebCodecsCapability(result.plan);
+  if (!cap.supported) {
+    console.warn("Hardware encoder unsupported:", cap.reason);
+    return fallbackToServer(result.plan);
+  }
+
+  // 3. Execute in-browser conversion
+  const [output] = await executeWebCodecsPipeline(
+    result.plan,
+    inputFile, // File | Blob from <input type="file">
+    ({ ratio }) => console.log(`Progress: ${(ratio * 100).toFixed(0)}%`)
+  );
+
+  // output.data is Uint8Array video bytes
+  const blob = new Blob([output.data], { type: "video/mp4" });
+  videoElem.src = URL.createObjectURL(blob);
+}
+```
+
+For React/Vue integration examples, memory optimization, and compatibility matrices, see the complete [**Frontend Integration Guide**](docs/FRONTEND_GUIDE.md).
 
 ---
 
@@ -713,6 +769,44 @@ const v2 = ast as ProgramV2;
 console.log(Object.keys(v2.sources));  // ['intro', 'music']
 console.log(v2.timeline?.clips);       // ['c_intro']
 console.log(commands);                 // Pass-1 + Pass-2 FFmpeg commands
+```
+
+---
+
+## Target-Dispatch Compile (`compileTarget`)
+
+`compileTarget()` auto-detects the runtime environment or accepts an explicit `{ target }` option:
+
+```ts
+import { compileTarget, type CompileOutput } from "@arafat2020/kurenai";
+
+// 1. Auto-detect environment ('node' -> 'ffmpeg', 'browser' -> 'webcodecs')
+const result = compileTarget(source);
+
+// 2. Or pass an explicit target
+const ffmpegResult = compileTarget(source, { target: "ffmpeg" });
+const webcodecsResult = compileTarget(source, { target: "webcodecs" });
+
+if (result.target === "ffmpeg") {
+  console.log(result.commands); // string[]
+} else {
+  console.log(result.plan);     // WebCodecsPipelinePlan
+}
+```
+
+---
+
+## Browser Subpath Export (`@arafat2020/kurenai/browser`)
+
+Import browser-specific WebCodecs tools without bloating Node.js server bundles:
+
+```ts
+import {
+  checkWebCodecsCapability,
+  executeWebCodecsPipeline,
+  detectEnvironment,
+  resolveTarget,
+} from "@arafat2020/kurenai/browser";
 ```
 
 ---
