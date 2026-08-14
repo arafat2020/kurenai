@@ -1,4 +1,5 @@
 import { Program } from "./parser";
+import { type CompileOptions } from "./index.js";
 
 /**
  * Maps simple Kurenai video codec names to their FFmpeg equivalents.
@@ -33,6 +34,7 @@ import { type ProgramV2 } from "./interfaces/v2.js";
  * It builds the main ffmpeg pipeline and adds extra commands (like thumbnail generation) if needed.
  * 
  * @param program The parsed and analyzed Program AST
+ * @param options Optional compilation flags (e.g. `start`, `end`)
  * @returns An array of ffmpeg command strings ready for execution
  */
 export function generate(code: Program | ProgramV2): string[] {
@@ -45,7 +47,11 @@ export function generate(code: Program | ProgramV2): string[] {
     const audioExtensions = ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.opus', '.wma', '.aiff'];
 
     for (const out of program.outputs) {
-        let cmd = `ffmpeg -i ${program.input.value}`;
+        let cmd = `ffmpeg`;
+        if (options.start !== undefined) cmd += ` -ss ${options.start}`;
+        if (options.end !== undefined) cmd += ` -to ${options.end}`;
+        cmd += ` -i ${program.input.value}`;
+
         const merged = { ...program, ...out.overrides };
         const vfFilters: string[] = [];
 
@@ -178,9 +184,9 @@ export function generate(code: Program | ProgramV2): string[] {
         commands.push(cmd);
     }
 
-    if (program.thumbnail) {
-        const thumbCommand = `ffmpeg -i ${program.input.value} -ss ${program.thumbnail.value.replace('s', '')} -frames:v 1 thumb.jpg`;
-        commands.push(thumbCommand);
+    if (program.thumbnail && options.start === undefined && options.end === undefined) {
+        const ts = program.thumbnail.value.replace('s', '');
+        commands.push(`ffmpeg -i ${program.input.value} -ss ${ts} -frames:v 1 thumb.jpg`);
     }
 
     return commands;
