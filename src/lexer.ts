@@ -39,6 +39,10 @@ export interface Token {
 function lexer(input: string): Token[] {
     const tokens: Token[] = [];
     const lines = input.split('\n');
+    /**
+     * At each position, match either a single brace, or a whole quoted string, 
+     * or a run of non-space/non-brace characters — and keep doing this across the entire line.
+     */
     const tokenRegex = /([{}])|("[^"]*")|([^\s{}]+)/g;
 
     // Iterate through each line of the input

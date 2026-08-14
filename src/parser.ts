@@ -14,6 +14,8 @@ import { WatermarkParser } from './core/WatermarkParser.js';
 import { ThumbnailParser } from './core/ThumbnailParser.js';
 import { ProfileParser }  from './core/ProfileParser.js';
 import { UseParser }      from './core/UseParser.js';
+import { parseTokensV2 } from './parser-v2.js';
+import { type ProgramV2 } from './interfaces/v2.js';
 
 /**
  * Stateful parser that converts a flat token array into a typed Program AST.
@@ -82,8 +84,6 @@ class Parser {
     }
 }
 
-import { parseTokensV2 } from './parser-v2.js';
-import { type ProgramV2 } from './interfaces/v2.js';
 
 /**
  * Core parsing function. Converts an array of Tokens into an AST Program.
