@@ -7,8 +7,6 @@ build/
 *.tsbuildinfo
 
 # Environment variables
-.env
-.env.local
 .env.*.local
 
 # IDE and editor files
@@ -30,3 +28,4 @@ yarn-error.log*
 Thumbs.db
 .gitignore
 branch_structure.json
+config.bat
