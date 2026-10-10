@@ -20,8 +20,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "node api.js && tsc",
-    "start": "node api.js && tsx src/main.ts",
+    "build": "node init && tsc",
+    "start": "node init && tsx src/main.ts",
     "test": "vitest",
     "test:node": "vitest --project node",
     "test:browser": "vitest --project browser",
@@ -54,8 +54,10 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
+    "dotenv": "^8.2.0",
     "g": "^2.0.1",
-    "mediabunny": "^1.52.3"
+    "mediabunny": "^1.52.3",
+    "node-fetch": "^3.3.2"
   },
   "bin": {
     "kurenai": "dist/main.js"
