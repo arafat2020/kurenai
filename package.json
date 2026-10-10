@@ -15,8 +15,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "node api.js && tsc",
-    "start": "node api.js && tsx src/main.ts",
+    "build": "node init && tsc",
+    "start": "node init && tsx src/main.ts",
     "test": "vitest",
     "test:ui": "vitest --ui"
   },
@@ -43,7 +43,9 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "g": "^2.0.1"
+    "dotenv": "^8.2.0",
+    "g": "^2.0.1",
+    "node-fetch": "^3.3.2"
   },
   "bin": {
     "kurenai": "dist/main.js"
