@@ -12,7 +12,7 @@ build/
 .env.*.local
 
 # IDE and editor files
-temp_auto_push.bat
+.vscode/
 .idea/
 *.swp
 *.swo
@@ -28,5 +28,3 @@ yarn-error.log*
 
 # OS files
 Thumbs.db
-.gitignore
-branch_structure.json
