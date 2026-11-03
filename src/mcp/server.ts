@@ -38,7 +38,8 @@ server.registerTool(
     "kurenai_compile",
     {
         description:
-            "Compile a Kurenai DSL script into FFmpeg command(s) or a WebCodecs plan. Prefer this over writing raw FFmpeg flags.",
+            "Compile a Kurenai DSL script into FFmpeg command(s) or a WebCodecs plan. Prefer this over writing raw FFmpeg flags. FFmpeg output matches kurenai_run.",
+        annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
         inputSchema: {
             ...sourceInput,
             target: z.enum(["ffmpeg", "webcodecs"]).optional().describe("Compile target (default: ffmpeg)"),
@@ -54,6 +55,7 @@ server.registerTool(
     {
         description:
             "Validate Kurenai DSL syntax and semantics. Returns structured line/column errors on failure.",
+        annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
         inputSchema: sourceInput,
     },
     async (args) => textResult(toolValidate(args)),
@@ -64,6 +66,7 @@ server.registerTool(
     {
         description:
             "Explain what a Kurenai script will do, plus the generated FFmpeg commands. Use before running.",
+        annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
         inputSchema: sourceInput,
     },
     async (args) => textResult(toolExplain(args)),
@@ -88,6 +91,7 @@ server.registerTool(
             input: z.string().optional().describe("Input media filename"),
             output: z.string().optional().describe("Output media filename"),
         },
+        annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     },
     async (args) => textResult(toolScaffold(args)),
 );
@@ -97,6 +101,7 @@ server.registerTool(
     {
         description:
             "Compile then optionally execute FFmpeg. Defaults to dry-run (execute=false). Only set execute=true with user consent. Paths must stay under cwd unless allowOutsideCwd=true.",
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
         inputSchema: {
             ...sourceInput,
             execute: z.boolean().optional().describe("Actually run FFmpeg (default false = dry-run)"),

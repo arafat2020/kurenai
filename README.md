@@ -1,13 +1,76 @@
 # Kurenai
 
-Kurenai is a lightweight Domain Specific Language (DSL) and compiler for generating FFmpeg commands.
+Kurenai is a DSL compiler for media pipelines. You write a short `.crn` script; Kurenai validates it and turns it into FFmpeg commands or a WebCodecs plan.
 
-Instead of memorizing complex FFmpeg flags and filter graphs, you describe your media processing pipeline using a clean, human-readable syntax and let Kurenai generate the commands for you — whether you're processing video, audio, or both.
+Coding agents should drive that through the MCP server below, instead of guessing FFmpeg flags.
+
+---
+
+## MCP
+
+`kurenai-mcp` is a stdio Model Context Protocol server for Cursor, Claude Desktop, and any other MCP client. It wraps the compiler: compile, validate, explain, scaffold, and an opt-in run.
+
+### Client config
+
+Published package:
+
+```json
+{
+  "mcpServers": {
+    "kurenai": {
+      "command": "npx",
+      "args": ["-y", "--package=@arafat2020/kurenai", "kurenai-mcp"]
+    }
+  }
+}
+```
+
+This checkout, after `npm install && npm run build`:
+
+```json
+{
+  "mcpServers": {
+    "kurenai": {
+      "command": "node",
+      "args": ["/absolute/path/to/kurenai/dist/mcp/server.js"]
+    }
+  }
+}
+```
+
+Local TypeScript, no build: `npm run mcp`
+
+### Tools
+
+| Tool | What the agent gets |
+|---|---|
+| `kurenai_compile` | FFmpeg commands, or a WebCodecs plan when `target` is `webcodecs` |
+| `kurenai_validate` | Syntax and semantic check with line/column errors |
+| `kurenai_explain` | What the script will do, plus the FFmpeg commands |
+| `kurenai_scaffold` | A known-valid starter: `resize`, `podcast`, `watermark`, `trim`, `mute`, `rotate`, `gif_ready`, `quality` |
+| `kurenai_run` | Dry-run unless `execute` is `true`. Media paths must stay under the working directory unless `allowOutsideCwd` is `true` |
+
+`compile`, `validate`, `explain`, and `scaffold` are read-only. `run` is marked destructive. It does not start FFmpeg until `execute` is true.
+
+Resource: `kurenai://docs/dsl` — a short DSL reference for the agent.
+
+### Agent loop
+
+1. Call `kurenai_scaffold`, or write `.crn` from the DSL resource. Scaffold keeps the input and output filenames you pass.
+2. Call `kurenai_validate` and patch from the line/column error.
+3. Call `kurenai_explain` so a person can see loudness, quality, and the command before anything runs.
+4. Call `kurenai_compile` to show the command. For FFmpeg this is the same command `kurenai_run` executes, including V2 timelines (clip segments, then concat).
+5. Call `kurenai_run` with `execute: true` only after the user agrees.
+
+WebCodecs is compile-only. A resize and frame rate stay on the plan even when the script has no `encode` line. V2 scripts are refused on that target with a message to use FFmpeg.
+
+More context: `docs/mcp-usecase.md` and `docs/ffmpeg-gaps.md`.
 
 ---
 
 ## Features
 
+* **MCP server** — `kurenai_compile`, `kurenai_validate`, `kurenai_explain`, `kurenai_scaffold`, and opt-in `kurenai_run` for coding agents
 * Human-readable DSL for video **and audio** processing
 * Generates valid FFmpeg commands
 * CLI and TypeScript API

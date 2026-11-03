@@ -48,8 +48,9 @@ export interface WebCodecsPipelineVideoConfig {
     /**
      * mediabunny/WebCodecs codec string.
      * e.g. "avc" for H.264, "vp09" for VP9, "vp8" for VP8, "av1" for AV1.
+     * Omitted when the script sets geometry (resize / fps) but no `encode` line.
      */
-    codec: string;
+    codec?: string;
     /** Output width in pixels. Undefined = keep source width. */
     width?: number;
     /** Output height in pixels. Undefined = keep source height. */

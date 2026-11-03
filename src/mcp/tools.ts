@@ -1,12 +1,13 @@
 import { readFileSync, existsSync } from "node:fs";
-import { resolve, isAbsolute } from "node:path";
+import { resolve, isAbsolute, relative, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { compile, compileTarget, CompilerError } from "../index.js";
 import { lexer } from "../lexer.js";
-import { parseTokens } from "../parser.js";
+import { parseTokens, type Program } from "../parser.js";
 import { analyze } from "../analyzer.js";
 import { generate } from "../codegen.js";
 import { explain } from "../explain.js";
+import { type ProgramV2 } from "../interfaces/v2.js";
 
 export interface McpToolResult {
     ok: boolean;
@@ -51,12 +52,68 @@ function wrapOk(payload: unknown): McpToolResult {
     };
 }
 
+function isInsideCwd(filePath: string, cwd: string): boolean {
+    const abs = isAbsolute(filePath) ? resolve(filePath) : resolve(cwd, filePath);
+    const rel = relative(cwd, abs);
+    if (rel === "") return true;
+    if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return false;
+    return true;
+}
+
+function collectMediaPaths(ast: Program | ProgramV2): string[] {
+    const paths: string[] = [];
+    const push = (value: string | undefined) => {
+        if (value && value.trim().length > 0) paths.push(value);
+    };
+
+    if (ast.version === 2) {
+        const program = ast as ProgramV2;
+        for (const source of Object.values(program.sources)) push(source.file);
+    } else {
+        const program = ast as Program;
+        push(program.input.value);
+        push(program.audio?.value);
+    }
+
+    push(ast.watermark?.file);
+    for (const out of ast.outputs) push(out.file);
+    return paths;
+}
+
 function wrapErr(err: unknown, source?: string): McpToolResult {
     if (err instanceof CompilerError && source !== undefined) {
         return { ok: false, isError: true, content: formatCompilerError(err, source) };
     }
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, isError: true, content: message };
+}
+
+/**
+ * FFmpeg commands from the same generator `kurenai_run` executes.
+ * WebCodecs stays on the target-dispatch pipeline.
+ */
+function compileForTool(args: {
+    source: string;
+    target?: "ffmpeg" | "webcodecs" | undefined;
+    start?: number | undefined;
+    end?: number | undefined;
+}): { target: "ffmpeg"; commands: string[]; ast: Program | ProgramV2 } | { target: "webcodecs"; plan: unknown } {
+    if ((args.target ?? "ffmpeg") === "webcodecs") {
+        const options: Parameters<typeof compileTarget>[1] = { target: "webcodecs" };
+        if (args.start !== undefined) options.start = args.start;
+        if (args.end !== undefined) options.end = args.end;
+        const result = compileTarget(args.source, options);
+        if (result.target !== "webcodecs") {
+            throw new Error("Expected a WebCodecs plan");
+        }
+        return { target: "webcodecs", plan: result.plan };
+    }
+
+    const options: Parameters<typeof compile>[1] = {};
+    if (args.start !== undefined) options.start = args.start;
+    if (args.end !== undefined) options.end = args.end;
+    const { ast, commands } = compile(args.source, options);
+    return { target: "ffmpeg", commands, ast };
 }
 
 /** Compile a Kurenai DSL script to FFmpeg commands or a WebCodecs plan. */
@@ -70,11 +127,11 @@ export function toolCompile(args: {
     let source = "";
     try {
         source = resolveSource(args);
-        const target = args.target ?? "ffmpeg";
-        const options: Parameters<typeof compileTarget>[1] = { target };
-        if (args.start !== undefined) options.start = args.start;
-        if (args.end !== undefined) options.end = args.end;
-        const result = compileTarget(source, options);
+        const request: Parameters<typeof compileForTool>[0] = { source };
+        if (args.target !== undefined) request.target = args.target;
+        if (args.start !== undefined) request.start = args.start;
+        if (args.end !== undefined) request.end = args.end;
+        const result = compileForTool(request);
         if (result.target === "ffmpeg") {
             return wrapOk({ target: "ffmpeg", commands: result.commands });
         }
@@ -155,13 +212,13 @@ export function toolScaffold(args: {
             `output "${output}"`,
         ].join("\n"),
         podcast: [
-            `input "${input.endsWith(".mp3") ? input : "podcast.mp3"}"`,
+            `input "${args.input ?? "podcast.mp3"}"`,
             `audio {`,
             `  normalize -14 LUFS`,
             `  codec aac`,
             `  bitrate 192k`,
             `}`,
-            `output "${output.endsWith(".mp3") ? output : "mastered.mp3"}"`,
+            `output "${args.output ?? "mastered.mp3"}"`,
         ].join("\n"),
         watermark: [
             `input "${input}"`,
@@ -197,7 +254,7 @@ export function toolScaffold(args: {
             `resize 480x270`,
             `fps 12`,
             `mute`,
-            `output "clip.mp4"`,
+            `output "${args.output ?? "clip.mp4"}"`,
         ].join("\n"),
         quality: [
             `input "${input}"`,
@@ -232,21 +289,15 @@ export function toolRun(args: {
     let source = "";
     try {
         source = resolveSource(args);
-        const { commands } = compile(source);
+        const { ast, commands } = compile(source);
         const cwd = process.cwd();
 
         if (!args.allowOutsideCwd) {
-            for (const cmd of commands) {
-                const paths = [...cmd.matchAll(/(?:^|\s)((?:\.\/)?[^\s"']+\.(?:mp4|mkv|mov|webm|avi|mp3|wav|aac|flac|ogg|m4a|opus|png|jpg|jpeg))/gi)]
-                    .map((m) => m[1]!)
-                    .filter((p) => !p.startsWith("-"));
-                for (const p of paths) {
-                    const abs = isAbsolute(p) ? p : resolve(cwd, p);
-                    if (!abs.startsWith(cwd)) {
-                        throw new Error(
-                            `Refusing path outside cwd: ${p}. Pass allowOutsideCwd=true to override.`,
-                        );
-                    }
+            for (const filePath of collectMediaPaths(ast)) {
+                if (!isInsideCwd(filePath, cwd)) {
+                    throw new Error(
+                        `Refusing path outside cwd: ${filePath}. Pass allowOutsideCwd=true to override.`,
+                    );
                 }
             }
         }
@@ -261,6 +312,10 @@ export function toolRun(args: {
 
         const results: string[] = [];
         for (const cmd of commands) {
+            if (!cmd.trimStart().startsWith("ffmpeg ")) {
+                results.push(`SKIP: ${cmd.split("\n")[0]}`);
+                continue;
+            }
             // Split carefully: first token is ffmpeg, rest are args.
             const parts = cmd.match(/(?:[^\s"]+|"[^"]*")+/g) ?? [cmd];
             const bin = parts[0]!;
