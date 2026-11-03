@@ -14,14 +14,22 @@
       "import": "./dist/browser.js",
       "require": "./dist/browser.js",
       "types": "./dist/browser.d.ts"
+    },
+    "./mcp": {
+      "import": "./dist/mcp/server.js",
+      "require": "./dist/mcp/server.js",
+      "types": "./dist/mcp/server.d.ts"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "scripts": {
-    "build": "node api.js && tsc",
-    "start": "node api.js && tsx src/main.ts",
+    "build": "tsc",
+    "start": "tsx src/main.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "mcp:built": "node bin/kurenai-mcp.js",
     "test": "vitest",
     "test:node": "vitest --project node",
     "test:browser": "vitest --project browser",
@@ -53,11 +61,13 @@
     "vitest": "^4.1.8"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "commander": "^15.0.0",
-    "g": "^2.0.1",
-    "mediabunny": "^1.52.3"
+    "mediabunny": "^1.52.3",
+    "zod": "^3.25.76"
   },
   "bin": {
-    "kurenai": "dist/main.js"
+    "kurenai": "dist/main.js",
+    "kurenai-mcp": "bin/kurenai-mcp.js"
   }
 }

@@ -14,6 +14,14 @@ import { WatermarkParser } from './core/WatermarkParser.js';
 import { ThumbnailParser } from './core/ThumbnailParser.js';
 import { ProfileParser }  from './core/ProfileParser.js';
 import { UseParser }      from './core/UseParser.js';
+import { TrimParser }     from './core/TrimParser.js';
+import { CrfParser }      from './core/CrfParser.js';
+import { PresetParser }   from './core/PresetParser.js';
+import { MuteParser }     from './core/MuteParser.js';
+import { RotateParser }   from './core/RotateParser.js';
+import { FlipParser }     from './core/FlipParser.js';
+import { CropParser }     from './core/CropParser.js';
+import { SpeedParser }    from './core/SpeedParser.js';
 
 /**
  * Stateful parser that converts a flat token array into a typed Program AST.
@@ -57,6 +65,14 @@ class Parser {
             case 'audio':     return new AudioParser(tokens, program).parse(i, target);
             case 'watermark': return new WatermarkParser(tokens, program).parse(i, target);
             case 'thumbnail': return new ThumbnailParser(tokens, program).parse(i, target);
+            case 'trim':      return new TrimParser(tokens, program).parse(i, target);
+            case 'crf':       return new CrfParser(tokens, program).parse(i, target);
+            case 'preset':    return new PresetParser(tokens, program).parse(i, target);
+            case 'mute':      return new MuteParser(tokens, program).parse(i, target);
+            case 'rotate':    return new RotateParser(tokens, program).parse(i, target);
+            case 'flip':      return new FlipParser(tokens, program).parse(i, target);
+            case 'crop':      return new CropParser(tokens, program).parse(i, target);
+            case 'speed':     return new SpeedParser(tokens, program).parse(i, target);
             case 'profile':   return new ProfileParser(tokens, program, dispatch).parse(i, target);
             case 'use':       return new UseParser(tokens, program).parse(i, target);
             default:
