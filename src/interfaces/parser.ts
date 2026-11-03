@@ -28,10 +28,27 @@ export interface InputNode extends ASTNode {
 /** Represents a single output block in the AST.
  * Each output block can have its own configuration, which overrides global settings.
  */
+export type ProgramOverrideKeys =
+    | 'resize'
+    | 'fps'
+    | 'encode'
+    | 'bitrate'
+    | 'audio'
+    | 'watermark'
+    | 'thumbnail'
+    | 'trim'
+    | 'crf'
+    | 'preset'
+    | 'mute'
+    | 'rotate'
+    | 'flip'
+    | 'crop'
+    | 'speed';
+
 export interface OutputBlockNode extends ASTNode {
     type: 'OUTPUT_BLOCK';
     file: string;
-    overrides: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
+    overrides: Partial<Pick<Program, ProgramOverrideKeys>>;
 }
 
 // interface OutputNode extends ASTNode {
@@ -108,6 +125,57 @@ export interface ThumbnailNode extends ASTNode {
     value: string;
 }
 
+/** Trim a time range from the input (`-ss` / `-to`). */
+export interface TrimNode extends ASTNode {
+    type: 'TRIM';
+    start: string;
+    end: string;
+}
+
+/** Constant Rate Factor quality target for libx264/libx265/etc. */
+export interface CrfNode extends ASTNode {
+    type: 'CRF';
+    value: number;
+}
+
+/** Encoder preset (speed vs compression). */
+export interface PresetNode extends ASTNode {
+    type: 'PRESET';
+    value: string;
+}
+
+/** Drop the audio stream (`-an`). */
+export interface MuteNode extends ASTNode {
+    type: 'MUTE';
+}
+
+/** Rotate video by 90 / 180 / 270 degrees. */
+export interface RotateNode extends ASTNode {
+    type: 'ROTATE';
+    degrees: 90 | 180 | 270;
+}
+
+/** Mirror video horizontally or vertically. */
+export interface FlipNode extends ASTNode {
+    type: 'FLIP';
+    direction: 'horizontal' | 'vertical';
+}
+
+/** Crop to WIDTHxHEIGHT, optionally at x/y. */
+export interface CropNode extends ASTNode {
+    type: 'CROP';
+    width: number;
+    height: number;
+    x?: number;
+    y?: number;
+}
+
+/** Playback / encode speed multiplier (setpts + atempo). */
+export interface SpeedNode extends ASTNode {
+    type: 'SPEED';
+    value: number;
+}
+
 /**
  * Represents a profile command in the AST.
  * Profiles allow users to define reusable configurations that can be applied to multiple outputs.
@@ -115,7 +183,7 @@ export interface ThumbnailNode extends ASTNode {
 export interface ProfileNode extends ASTNode {
     type: 'PROFILE';
     name: string;
-    body: Partial<Pick<Program, 'resize' | 'fps' | 'encode' | 'bitrate' | 'audio' | 'watermark' | 'thumbnail'>>;
+    body: Partial<Pick<Program, ProgramOverrideKeys>>;
 }
 
 /**
@@ -168,5 +236,13 @@ export interface Program extends ASTNode {
     audio?: AudioNode;
     watermark?: WatermarkNode;
     thumbnail?: ThumbnailNode;
+    trim?: TrimNode;
+    crf?: CrfNode;
+    preset?: PresetNode;
+    mute?: MuteNode;
+    rotate?: RotateNode;
+    flip?: FlipNode;
+    crop?: CropNode;
+    speed?: SpeedNode;
     profiles: Record<string, ProfileNode>;
 }

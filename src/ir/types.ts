@@ -39,6 +39,18 @@ export interface IRVideoConfig {
     codec?: CanonicalVideoCodec;
     /** Video bitrate in bits per second (already parsed from "2M" / "3000k"). */
     bitrateBps?: number;
+    /** Constant Rate Factor (quality). Takes precedence over bitrate when set. */
+    crf?: number;
+    /** Encoder preset (e.g. ultrafast … veryslow). */
+    preset?: string;
+    /** Clockwise rotation in degrees. */
+    rotate?: 90 | 180 | 270;
+    /** Mirror axis. */
+    flip?: "horizontal" | "vertical";
+    /** Crop window. Missing x/y means centered crop. */
+    crop?: { width: number; height: number; x?: number; y?: number };
+    /** Playback speed multiplier (1 = normal). */
+    speed?: number;
 }
 
 // ── Audio configuration ──────────────────────────────────────────────────────
@@ -120,6 +132,11 @@ export interface IRThumbnail {
  * Both `FFmpegCodeGenerator` and `WebCodecsCodeGenerator` accept an `IR` and
  * map its values to their own target vocabularies.
  */
+export interface IRTrim {
+    startSeconds: number;
+    endSeconds: number;
+}
+
 export interface IR {
     /** Source input file path. */
     input: string;
@@ -133,6 +150,10 @@ export interface IR {
     watermark?: IRWatermark;
     /** Optional thumbnail extraction config. */
     thumbnail?: IRThumbnail;
+    /** Optional input trim window (`-ss` / `-to`). */
+    trim?: IRTrim;
+    /** When true, drop audio (`-an`). */
+    mute?: boolean;
     /**
      * Whether the input is an audio-only file (e.g. .mp3, .wav).
      * Used by codegens to skip video-filter steps.

@@ -72,7 +72,7 @@ function buildOutputOverrides(
 
     const result: IROutputOverrides = {};
 
-    if (ov.resize || ov.fps || ov.encode || ov.bitrate) {
+    if (ov.resize || ov.fps || ov.encode || ov.bitrate || ov.crf || ov.preset || ov.rotate || ov.flip || ov.crop || ov.speed) {
         const video: IRVideoConfig = {};
         if (ov.resize) {
             video.width  = ov.resize.width;
@@ -89,6 +89,7 @@ function buildOutputOverrides(
             const bps = parseBitrateToBps(ov.bitrate.value);
             if (bps !== undefined) video.bitrateBps = bps;
         }
+        applyVideoExtras(ov as Program, video);
         result.video = video;
     }
 
@@ -159,6 +160,22 @@ function buildOutputOverrides(
 
 // ── V1 Program → IR ──────────────────────────────────────────────────────────
 
+function applyVideoExtras(program: Program, video: IRVideoConfig): void {
+    if (program.crf) video.crf = program.crf.value;
+    if (program.preset) video.preset = program.preset.value;
+    if (program.rotate) video.rotate = program.rotate.degrees;
+    if (program.flip) video.flip = program.flip.direction;
+    if (program.crop) {
+        video.crop = {
+            width: program.crop.width,
+            height: program.crop.height,
+            ...(program.crop.x !== undefined ? { x: program.crop.x } : {}),
+            ...(program.crop.y !== undefined ? { y: program.crop.y } : {}),
+        };
+    }
+    if (program.speed) video.speed = program.speed.value;
+}
+
 function buildIRFromV1(program: Program): IR {
     const video: IRVideoConfig = {};
     if (program.resize) {
@@ -176,6 +193,7 @@ function buildIRFromV1(program: Program): IR {
         const bps = parseBitrateToBps(program.bitrate.value);
         if (bps !== undefined) video.bitrateBps = bps;
     }
+    applyVideoExtras(program, video);
 
     let audio: IRAudioConfig | undefined;
     if (program.audio) {
@@ -256,6 +274,13 @@ function buildIRFromV1(program: Program): IR {
     if (audio) result.audio = audio;
     if (watermark) result.watermark = watermark;
     if (thumbnail) result.thumbnail = thumbnail;
+    if (program.trim) {
+        result.trim = {
+            startSeconds: parseTimeToSeconds(program.trim.start) ?? 0,
+            endSeconds: parseTimeToSeconds(program.trim.end) ?? 0,
+        };
+    }
+    if (program.mute) result.mute = true;
 
     return result;
 }

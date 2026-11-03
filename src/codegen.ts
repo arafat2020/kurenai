@@ -47,12 +47,14 @@ export function generate(code: Program | ProgramV2, options: { start?: number; e
     const audioExtensions = ['.mp3', '.wav', '.aac', '.flac', '.ogg', '.m4a', '.opus', '.wma', '.aiff'];
 
     for (const out of program.outputs) {
+        const merged = { ...program, ...out.overrides };
         let cmd = `ffmpeg`;
-        if (options.start !== undefined) cmd += ` -ss ${options.start}`;
-        if (options.end !== undefined) cmd += ` -to ${options.end}`;
+        const trimStart = options.start ?? (merged.trim ? parseFloat(merged.trim.start.replace(/[a-z]+$/i, '')) : undefined);
+        const trimEnd = options.end ?? (merged.trim ? parseFloat(merged.trim.end.replace(/[a-z]+$/i, '')) : undefined);
+        if (trimStart !== undefined) cmd += ` -ss ${trimStart}`;
+        if (trimEnd !== undefined) cmd += ` -to ${trimEnd}`;
         cmd += ` -i ${program.input.value}`;
 
-        const merged = { ...program, ...out.overrides };
         const vfFilters: string[] = [];
 
         const inputExtension = program.input.value.includes('.') 
@@ -60,12 +62,38 @@ export function generate(code: Program | ProgramV2, options: { start?: number; e
             : '';
         const isAudioOnly = audioExtensions.includes(inputExtension);
 
+        if (!isAudioOnly && merged.crop) {
+            if (merged.crop.x !== undefined && merged.crop.y !== undefined) {
+                vfFilters.push(`crop=${merged.crop.width}:${merged.crop.height}:${merged.crop.x}:${merged.crop.y}`);
+            } else {
+                vfFilters.push(`crop=${merged.crop.width}:${merged.crop.height}`);
+            }
+        }
+
         if (!isAudioOnly && merged.resize) {
             vfFilters.push(`scale=${merged.resize.width}:${merged.resize.height}`);
         }
 
         if (!isAudioOnly && merged.fps) {
             vfFilters.push(`fps=${merged.fps.value}`);
+        }
+
+        if (!isAudioOnly && merged.rotate) {
+            const rotMap: Record<number, string> = {
+                90: 'transpose=1',
+                180: 'transpose=1,transpose=1',
+                270: 'transpose=2',
+            };
+            vfFilters.push(rotMap[merged.rotate.degrees]!);
+        }
+
+        if (!isAudioOnly && merged.flip) {
+            vfFilters.push(merged.flip.direction === 'horizontal' ? 'hflip' : 'vflip');
+        }
+
+        if (!isAudioOnly && merged.speed && merged.speed.value !== 1) {
+            const factor = Number((1 / merged.speed.value).toFixed(6));
+            vfFilters.push(`setpts=${factor}*PTS`);
         }
 
         let outOptions = "";
@@ -76,14 +104,27 @@ export function generate(code: Program | ProgramV2, options: { start?: number; e
 
         if (merged.encode) {
             const vCodec = videoCodecMap[merged.encode.videoCodec] || merged.encode.videoCodec;
-            outOptions += ` -c:v ${vCodec} -c:a ${merged.encode.audioCodec}`;
+            outOptions += ` -c:v ${vCodec}`;
+            if (!merged.mute) {
+                outOptions += ` -c:a ${merged.encode.audioCodec}`;
+            }
         }
 
-        if (merged.bitrate) {
+        if (merged.preset) {
+            outOptions += ` -preset ${merged.preset.value}`;
+        }
+
+        if (merged.crf) {
+            outOptions += ` -crf ${merged.crf.value}`;
+        } else if (merged.bitrate) {
             outOptions += ` -b:v ${merged.bitrate.value}`;
         }
 
-        if (merged.audio) {
+        if (merged.mute) {
+            outOptions += ' -an';
+        }
+
+        if (merged.audio && !merged.mute) {
             const audio = merged.audio;
             const afFilters: string[] = [];
 
@@ -168,9 +209,35 @@ export function generate(code: Program | ProgramV2, options: { start?: number; e
                 afFilters.push(`afade=t=out:st=99999:d=${duration}`);
             }
 
+            if (merged.speed && merged.speed.value !== 1) {
+                let remaining = merged.speed.value;
+                while (remaining > 2.0) {
+                    afFilters.push('atempo=2.0');
+                    remaining /= 2.0;
+                }
+                while (remaining < 0.5) {
+                    afFilters.push('atempo=0.5');
+                    remaining /= 0.5;
+                }
+                afFilters.push(`atempo=${Number(remaining.toFixed(4))}`);
+            }
+
             if (afFilters.length > 0) {
                 outOptions += ` -af "${afFilters.join(',')}"`;
             }
+        } else if (!merged.mute && merged.speed && merged.speed.value !== 1) {
+            let remaining = merged.speed.value;
+            const afFilters: string[] = [];
+            while (remaining > 2.0) {
+                afFilters.push('atempo=2.0');
+                remaining /= 2.0;
+            }
+            while (remaining < 0.5) {
+                afFilters.push('atempo=0.5');
+                remaining /= 0.5;
+            }
+            afFilters.push(`atempo=${Number(remaining.toFixed(4))}`);
+            outOptions += ` -af "${afFilters.join(',')}"`;
         }
 
         if (merged.watermark) {

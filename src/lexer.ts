@@ -106,6 +106,8 @@ function lexer(input: string): Token[] {
 function isKeyword(word: string): boolean {
     const keywords = [
         'resize', 'input', 'fps', 'output', 'encode', 'bitrate', 'audio', 'watermark', 'thumbnail', 'profile', 'use',
+        // FFmpeg power keywords (MCP / agent-friendly)
+        'trim', 'crf', 'preset', 'mute', 'rotate', 'flip', 'crop', 'speed',
         // V2 Keywords
         'source', 'clip', 'timeline', 'mix', 'track', 'from', 'to', 'volume'
     ];
