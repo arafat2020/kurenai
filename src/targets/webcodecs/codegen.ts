@@ -44,6 +44,13 @@ function mergedVideoConfig(ir: IR, out: IROutput): IRVideoConfig {
     return { ...ir.video, ...out.overrides?.video };
 }
 
+function applyVideoGeometry(target: WebCodecsPipelineVideoConfig, videoConfig: IRVideoConfig): void {
+    if (videoConfig.width !== undefined) target.width = videoConfig.width;
+    if (videoConfig.height !== undefined) target.height = videoConfig.height;
+    if (videoConfig.frameRate !== undefined) target.frameRate = videoConfig.frameRate;
+    if (videoConfig.bitrateBps !== undefined) target.bitrateBps = videoConfig.bitrateBps;
+}
+
 function mergedAudioConfig(ir: IR, out: IROutput): IRAudioConfig | undefined {
     if (!ir.audio && !out.overrides?.audio) return undefined;
     return { ...ir.audio, ...out.overrides?.audio };
@@ -68,6 +75,12 @@ function buildOutputPlan(
     const audioConfig = mergedAudioConfig(ir, out);
 
     let video: WebCodecsPipelineVideoConfig | undefined;
+    const hasGeometry =
+        videoConfig.width !== undefined ||
+        videoConfig.height !== undefined ||
+        videoConfig.frameRate !== undefined ||
+        videoConfig.bitrateBps !== undefined;
+
     if (!ir.isAudioOnly && videoConfig.codec) {
         const webCodecsCodec = VIDEO_CODEC_TO_WEBCODECS[videoConfig.codec];
         if (webCodecsCodec === null) {
@@ -83,12 +96,13 @@ function buildOutputPlan(
                 codec:               webCodecsCodec,
                 hardwareAcceleration: 'prefer-software',
             };
-            if (videoConfig.width !== undefined) v.width = videoConfig.width;
-            if (videoConfig.height !== undefined) v.height = videoConfig.height;
-            if (videoConfig.frameRate !== undefined) v.frameRate = videoConfig.frameRate;
-            if (videoConfig.bitrateBps !== undefined) v.bitrateBps = videoConfig.bitrateBps;
+            applyVideoGeometry(v, videoConfig);
             video = v;
         }
+    } else if (!ir.isAudioOnly && hasGeometry) {
+        const v: WebCodecsPipelineVideoConfig = {};
+        applyVideoGeometry(v, videoConfig);
+        video = v;
     }
 
     let audio: WebCodecsPipelineAudioConfig | undefined;

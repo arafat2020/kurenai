@@ -1,5 +1,6 @@
 import { Program } from "./parser";
 import { videoCodecMap } from "./codegen";
+import { type AudioNode, type CrfNode, type PresetNode } from "./interfaces/parser.js";
 
 /**
  * Formats a title as a section header for CLI output.
@@ -13,6 +14,73 @@ function sectionHeader(title: string): string {
  */
 function checkLine(label: string): string {
     return `  ✓ ${label}`;
+}
+
+function explainAudio(audio: AudioNode): void {
+    if (audio.value) {
+        console.log(checkLine(`audio file: ${audio.value}`));
+    }
+    if (audio.codec) {
+        console.log(checkLine(`audio codec: ${audio.codec}`));
+    }
+    if (audio.bitrate) {
+        console.log(checkLine(`audio bitrate: ${audio.bitrate}`));
+    }
+    if (audio.samplerate !== undefined) {
+        console.log(checkLine(`sample rate: ${audio.samplerate}`));
+    }
+    if (audio.channels) {
+        console.log(checkLine(`channels: ${audio.channels}`));
+    }
+    if (audio.normalize) {
+        console.log(checkLine(`normalize ${audio.normalize.value} ${audio.normalize.unit.toUpperCase()}`));
+    }
+    if (audio.eq) {
+        console.log(checkLine("eq"));
+    }
+    if (audio.compress) {
+        console.log(checkLine("compress"));
+    }
+    if (audio.reverb) {
+        console.log(checkLine(`reverb ${audio.reverb}`));
+    }
+    if (audio.fadein) {
+        console.log(checkLine(`fade in ${audio.fadein}`));
+    }
+    if (audio.fadeout) {
+        console.log(checkLine(`fade out ${audio.fadeout}`));
+    }
+}
+
+function explainEncoding(program: {
+    encode?: Program["encode"];
+    bitrate?: Program["bitrate"];
+    audio?: AudioNode;
+    crf?: CrfNode;
+    preset?: PresetNode;
+}): void {
+    const hasEncoding = program.encode || program.bitrate || program.audio || program.crf || program.preset;
+    if (!hasEncoding) return;
+
+    console.log(sectionHeader("Encoding"));
+
+    if (program.encode) {
+        const ffmpegCodec = videoCodecMap[program.encode.videoCodec] || program.encode.videoCodec;
+        console.log(checkLine(`video codec: ${program.encode.videoCodec} → ${ffmpegCodec}`));
+        console.log(checkLine(`audio codec: ${program.encode.audioCodec}`));
+    }
+    if (program.bitrate) {
+        console.log(checkLine(`bitrate: ${program.bitrate.value}`));
+    }
+    if (program.crf) {
+        console.log(checkLine(`crf ${program.crf.value}`));
+    }
+    if (program.preset) {
+        console.log(checkLine(`preset ${program.preset.value}`));
+    }
+    if (program.audio) {
+        explainAudio(program.audio);
+    }
 }
 
 import { type ProgramV2 } from "./interfaces/v2.js";
@@ -47,23 +115,7 @@ function explainV2(program: ProgramV2, commands: string[]): void {
         console.log(checkLine(program.timeline.clips.join(' → ')));
     }
 
-    // ── Encoding ──
-    const hasEncoding = program.encode || program.bitrate || program.audio;
-    if (hasEncoding) {
-        console.log(sectionHeader('Encoding'));
-
-        if (program.encode) {
-            const ffmpegCodec = videoCodecMap[program.encode.videoCodec] || program.encode.videoCodec;
-            console.log(checkLine(`video codec: ${program.encode.videoCodec} → ${ffmpegCodec}`));
-            console.log(checkLine(`audio codec: ${program.encode.audioCodec}`));
-        }
-        if (program.bitrate) {
-            console.log(checkLine(`bitrate: ${program.bitrate.value}`));
-        }
-        if (program.audio) {
-            console.log(checkLine(`audio: ${program.audio.value}`));
-        }
-    }
+    explainEncoding(program);
 
     // ── Extras ──
     const hasExtras = program.watermark || program.thumbnail;
@@ -125,23 +177,7 @@ export function explain(program: Program | ProgramV2, commands: string[]): void 
         }
     }
 
-    // ── Encoding ──
-    const hasEncoding = oldProgram.encode || oldProgram.bitrate || oldProgram.audio;
-    if (hasEncoding) {
-        console.log(sectionHeader('Encoding'));
-
-        if (oldProgram.encode) {
-            const ffmpegCodec = videoCodecMap[oldProgram.encode.videoCodec] || oldProgram.encode.videoCodec;
-            console.log(checkLine(`video codec: ${oldProgram.encode.videoCodec} → ${ffmpegCodec}`));
-            console.log(checkLine(`audio codec: ${oldProgram.encode.audioCodec}`));
-        }
-        if (oldProgram.bitrate) {
-            console.log(checkLine(`bitrate: ${oldProgram.bitrate.value}`));
-        }
-        if (oldProgram.audio) {
-            console.log(checkLine(`audio: ${oldProgram.audio.value}`));
-        }
-    }
+    explainEncoding(oldProgram);
 
     // ── Extras ──
     const hasExtras = oldProgram.watermark || oldProgram.thumbnail;

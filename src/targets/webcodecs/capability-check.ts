@@ -48,6 +48,10 @@ async function checkVideoConfig(
         return { supported: false, reason: 'VideoEncoder is not available in this environment. WebCodecs requires a modern browser.' };
     }
 
+    if (!video.codec) {
+        return { supported: true };
+    }
+
     const codecString = WEBCODECS_VIDEO_CODEC_STRINGS[video.codec];
     if (!codecString) {
         return { supported: false, reason: `Unknown video codec: "${video.codec}"` };
@@ -154,7 +158,7 @@ export async function checkWebCodecsCapability(
 ): Promise<CapabilityCheckResult> {
     for (const out of plan.outputs) {
         // Check video
-        if (out.video) {
+        if (out.video?.codec) {
             const videoCheck = await checkVideoConfig(out.video);
             if (!videoCheck.supported) return videoCheck;
         }
