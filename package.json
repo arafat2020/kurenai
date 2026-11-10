@@ -26,6 +26,8 @@
     "bin"
   ],
   "scripts": {
+    "build": "node init && tsc",
+    "start": "node init && tsx src/main.ts",
     "mcp": "tsx src/mcp/server.ts",
     "mcp:built": "node bin/kurenai-mcp.js",
     "test": "vitest",
